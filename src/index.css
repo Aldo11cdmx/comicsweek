@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cw-bg: #0f0f14;
+  --color-cw-surface: #18181f;
+  --color-cw-surface-2: #22222b;
+  --color-cw-border: #2a2a35;
+  --color-cw-text: #e8e6f0;
+  --color-cw-text-muted: #8a8697;
+  --color-cw-accent: #ff7b54;
+  --color-cw-accent-hover: #ff9470;
+  --color-cw-warm: #c9a87c;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap");
+}
+
+@font-face {
+  font-family: "Cormorant Garamond";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&display=swap");
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a35 #18181f;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cw-bg);
+  color: var(--color-cw-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(255, 123, 84, 0.3);
+}
+
+input[type="file"] {
+  display: none;
+}

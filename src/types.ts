@@ -1,0 +1,48 @@
+export type ReadingMode = 'page' | 'vertical' | 'cinematic'
+export type ReadingDirection = 'ltr' | 'rtl'
+export type ComicStatus = 'new' | 'reading' | 'finished'
+export type Theme = 'dark' | 'light' | 'sepia'
+export type View = 'home' | 'library' | 'collections' | 'reader' | 'import'
+
+export interface Comic {
+  id: string
+  title: string
+  format: 'cbz' | 'zip' | 'pdf'
+  cover: string
+  pageCount: number
+  progress: number
+  status: ComicStatus
+  importedAt: number
+  lastReadAt: number | null
+  fileSize: number
+}
+
+export interface ReaderState {
+  currentPage: number
+  zoom: number
+  mode: ReadingMode
+  direction: ReadingDirection
+  isFullscreen: boolean
+  isControlsVisible: boolean
+  showSettings: boolean
+  showModeSelector: boolean
+  bookmarks: number[]
+}
+
+export interface ImportResult {
+  title: string
+  format: Comic['format']
+  cover: string
+  pageCount: number
+  file: File
+}
+
+export interface Page {
+  index: number
+  url: string
+  name: string
+  width: number
+  height: number
+  naturalWidth: number
+  naturalHeight: number
+}
