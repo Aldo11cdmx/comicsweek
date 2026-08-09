@@ -6,7 +6,16 @@ import { ComicDocument } from '../engine/ComicDocument'
 import { ReadingModes } from '../engine/ReadingModes'
 import { detectPanels } from '../engine/CinematicDetector'
 import { cn } from '../lib/utils'
-import type { ReadingMode, ReadingDirection, ComicStatus } from '../types'
+import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel } from '../types'
+
+const MIN_FOCUS_SCALE = 1
+const MAX_FOCUS_SCALE = 3.5
+const FOCUS_PADDING = 0.04
+const DETECTION_CACHE_MAX = 20
+
+function clamp(val: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, val))
+}
 
 export function Reader() {
   const { currentComicId, currentReaderState, updateReaderState, closeReader, updateComic, getComicFile, comics } = useComicStore()
@@ -17,11 +26,16 @@ export function Reader() {
   const [error, setError] = useState<string | null>(null)
   const [showControls, setShowControls] = useState(true)
   const [isPanelsLoading, setIsPanelsLoading] = useState(false)
-  const [panels, setPanels] = useState<any[]>([])
+  const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null)
   const [cinematicIndex, setCinematicIndex] = useState(0)
+  const [cinematicPaused, setCinematicPaused] = useState(false)
+  const [panelFocus, setPanelFocus] = useState<{ x: number; y: number; scale: number } | null>(null)
+  const [isFocusAnimating, setIsFocusAnimating] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const controlsTimeoutRef = useRef<number | null>(null)
   const prevPageRef = useRef(0)
+  const detectionCacheRef = useRef<Map<string, DetectionResult>>(new Map())
+  const resizeObserverRef = useRef<ResizeObserver | null>(null)
 
   const state = currentReaderState!
   const isFullscreen = state.isFullscreen
@@ -32,14 +46,103 @@ export function Reader() {
   const showSettings = state.showSettings
   const showModeSelector = state.showModeSelector
   const bookmarks = state.bookmarks
+  const debugMode = state.debugMode
+
+  const currentPanel: ComicPanel | null = mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0
+    ? detectionResult.panels[cinematicIndex]
+    : null
+  const total = doc?.getPageCount() || comic?.pageCount || 0
+
+  const computeFocusTarget = useCallback((panel: ComicPanel, containerWidth: number, containerHeight: number) => {
+    const padding = FOCUS_PADDING
+    const panelW = panel.width - padding * 2
+    const panelH = panel.height - padding * 2
+
+    if (panelW <= 0 || panelH <= 0) {
+      return { x: panel.x, y: panel.y, scale: 1 }
+    }
+
+    const scaleX = containerWidth / panelW
+    const scaleY = containerHeight / panelH
+    let targetScale = Math.min(scaleX, scaleY)
+    targetScale = clamp(targetScale, MIN_FOCUS_SCALE, MAX_FOCUS_SCALE)
+
+    const centerX = panel.x + panel.width / 2
+    const centerY = panel.y + panel.height / 2
+
+    const targetX = clamp(centerX, 0, 1)
+    const targetY = clamp(centerY, 0, 1)
+
+    return { x: targetX, y: targetY, scale: targetScale }
+  }, [])
+
+  const animateToFocus = useCallback((target: { x: number; y: number; scale: number }) => {
+    setPanelFocus(target)
+    setIsFocusAnimating(true)
+    setTimeout(() => setIsFocusAnimating(false), 300)
+  }, [])
+
+  const applyFocusToPanel = useCallback((panel: ComicPanel) => {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const target = computeFocusTarget(panel, rect.width, rect.height)
+    animateToFocus(target)
+  }, [computeFocusTarget, animateToFocus])
+
+  const loadPanels = useCallback(async (document: ComicDocument, pageIndex: number) => {
+    try {
+      const url = await document.getPageUrl(pageIndex)
+      const cacheKey = `${currentComicId}-${pageIndex}`
+      const cached = detectionCacheRef.current.get(cacheKey)
+      let result: DetectionResult
+
+      if (cached) {
+        result = cached
+      } else {
+        result = await detectPanels(url, 0.45)
+        detectionCacheRef.current.set(cacheKey, result)
+        if (detectionCacheRef.current.size > DETECTION_CACHE_MAX) {
+          const firstKey = detectionCacheRef.current.keys().next().value
+          if (firstKey !== undefined) detectionCacheRef.current.delete(firstKey)
+        }
+      }
+
+      setDetectionResult(result)
+      setCinematicIndex(0)
+      setCinematicPaused(false)
+
+      if (result.status === 'SUCCESS' && result.panels.length > 0) {
+        const panel = result.panels[0]
+        const rect = containerRef.current?.getBoundingClientRect()
+        if (rect) {
+          const target = computeFocusTarget(panel, rect.width, rect.height)
+          animateToFocus(target)
+        }
+      } else {
+        setPanelFocus(null)
+      }
+    } catch (error) {
+      console.error('Error detecting panels:', error)
+      setDetectionResult({
+        status: 'ERROR',
+        panels: [],
+        confidence: 'low',
+        rawCandidates: 0,
+      })
+    } finally {
+      setIsPanelsLoading(false)
+    }
+  }, [currentComicId, computeFocusTarget, animateToFocus])
 
   const loadComic = useCallback(async () => {
     if (!comic || !currentComicId) return
 
     setIsLoading(true)
     setError(null)
-    setPanels([])
+    setDetectionResult(null)
     setCinematicIndex(0)
+    setCinematicPaused(false)
+    setPanelFocus(null)
 
     try {
       const file = await getComicFile(currentComicId)
@@ -59,6 +162,7 @@ export function Reader() {
       }
 
       if (mode === 'cinematic') {
+        setIsPanelsLoading(true)
         loadPanels(newDoc, currentPage)
       }
 
@@ -68,7 +172,7 @@ export function Reader() {
       setError('No pudimos abrir este cómic.')
       setIsLoading(false)
     }
-  }, [comic, currentComicId, currentPage, getComicFile, mode])
+  }, [comic, currentComicId, currentPage, getComicFile, mode, loadPanels])
 
   useEffect(() => {
     if (currentComicId && comic) {
@@ -78,6 +182,9 @@ export function Reader() {
       if (doc) {
         doc.dispose()
         setDoc(null)
+      }
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect()
       }
     }
   }, [currentComicId])
@@ -89,27 +196,34 @@ export function Reader() {
         setCurrentUrl(url)
         if (mode === 'cinematic') {
           setCinematicIndex(0)
+          setCinematicPaused(false)
+          setPanelFocus(null)
+          setIsPanelsLoading(true)
           loadPanels(doc, currentPage)
         }
       }).catch(() => {
         setError('No se pudo cargar esta página.')
       })
     }
-  }, [currentPage, doc, mode])
+  }, [currentPage, doc, mode, loadPanels])
 
-  const loadPanels = async (document: ComicDocument, pageIndex: number) => {
-    try {
-      const url = await document.getPageUrl(pageIndex)
-      const detectedPanels = await detectPanels(url, 0.5)
-      setPanels(detectedPanels)
-      setCinematicIndex(0)
-    } catch (error) {
-      console.error('Error detecting panels:', error)
-      setPanels([])
-    } finally {
-      setIsPanelsLoading(false)
+  useEffect(() => {
+    if (!containerRef.current || mode !== 'cinematic') return
+
+    resizeObserverRef.current?.disconnect()
+    resizeObserverRef.current = new ResizeObserver(() => {
+      if (currentPanel && !cinematicPaused && panelFocus) {
+        const rect = containerRef.current!.getBoundingClientRect()
+        const target = computeFocusTarget(currentPanel, rect.width, rect.height)
+        setPanelFocus(target)
+      }
+    })
+    resizeObserverRef.current.observe(containerRef.current)
+
+    return () => {
+      resizeObserverRef.current?.disconnect()
     }
-  }
+  }, [mode, currentPanel, cinematicPaused, panelFocus, computeFocusTarget])
 
   const saveProgress = useCallback(async (page: number) => {
     if (!comic) return
@@ -129,36 +243,81 @@ export function Reader() {
     saveProgress(page)
   }, [doc, updateReaderState, saveProgress])
 
+  const nextPanel = useCallback(() => {
+    if (!detectionResult) return
+    const panels = detectionResult.panels
+    if (cinematicIndex < panels.length - 1) {
+      const next = panels[cinematicIndex + 1]
+      setCinematicIndex(prev => prev + 1)
+      setCinematicPaused(false)
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const target = computeFocusTarget(next, rect.width, rect.height)
+        animateToFocus(target)
+      }
+    } else {
+      goToPage(currentPage + 1)
+    }
+  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus])
+
+  const prevPanel = useCallback(() => {
+    if (!detectionResult) return
+    if (cinematicIndex > 0) {
+      const prev = detectionResult.panels[cinematicIndex - 1]
+      setCinematicIndex(prev => prev - 1)
+      setCinematicPaused(false)
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const target = computeFocusTarget(prev, rect.width, rect.height)
+        animateToFocus(target)
+      }
+    } else {
+      goToPage(currentPage - 1)
+    }
+  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus])
+
   const nextPage = useCallback(() => {
     if (!doc) return
-    const total = doc.getPageCount()
-    if (mode === 'cinematic' && panels.length > 0) {
-      if (cinematicIndex < panels.length - 1) {
-        setCinematicIndex(prev => prev + 1)
-        return
-      }
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+      nextPanel()
+      return
     }
-    const next = ReadingModes.nextPage(currentPage, total, mode, direction)
+    const next = ReadingModes.nextPage(currentPage, doc.getPageCount(), mode, direction)
     goToPage(next)
-  }, [doc, currentPage, mode, direction, goToPage, cinematicIndex, panels.length])
+  }, [doc, currentPage, mode, direction, goToPage, detectionResult, nextPanel])
 
   const prevPage = useCallback(() => {
     if (!doc) return
-    if (mode === 'cinematic' && panels.length > 0 && cinematicIndex > 0) {
-      setCinematicIndex(prev => prev - 1)
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && cinematicIndex > 0) {
+      prevPanel()
       return
     }
     const prev = ReadingModes.prevPage(currentPage, doc.getPageCount(), mode, direction)
     goToPage(prev)
-  }, [doc, currentPage, mode, direction, goToPage, cinematicIndex, panels.length])
+  }, [doc, currentPage, mode, direction, goToPage, detectionResult, cinematicIndex, prevPanel])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        e.preventDefault()
+        if (e.deltaX > 20) nextPanel()
+        else if (e.deltaX < -20) prevPanel()
+      } else if (e.deltaY > 30) {
+        e.preventDefault()
+        nextPanel()
+      } else if (e.deltaY < -30) {
+        e.preventDefault()
+        prevPanel()
+      }
+      return
+    }
+
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault()
       const delta = e.deltaY > 0 ? -0.1 : 0.1
-      updateReaderState({ zoom: Math.max(0.5, Math.min(5, zoom + delta)) })
+      updateReaderState({ zoom: clamp(zoom + delta, 0.5, 5) })
     }
-  }, [zoom, updateReaderState])
+  }, [mode, detectionResult, cinematicIndex, nextPanel, prevPanel, zoom, updateReaderState])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     switch (e.key) {
@@ -172,7 +331,11 @@ export function Reader() {
         break
       case ' ':
         e.preventDefault()
-        nextPage()
+        if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+          nextPanel()
+        } else {
+          nextPage()
+        }
         break
       case 'Escape':
         if (isFullscreen) {
@@ -205,8 +368,15 @@ export function Reader() {
           : [...bookmarks, currentPage]
         updateReaderState({ bookmarks: newBookmarks })
         break
+      case 'd':
+      case 'D':
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault()
+          updateReaderState({ debugMode: !debugMode })
+        }
+        break
     }
-  }, [nextPage, prevPage, isFullscreen, showSettings, showModeSelector, closeReader, updateReaderState, zoom, bookmarks, currentPage])
+  }, [nextPage, prevPage, isFullscreen, showSettings, showModeSelector, closeReader, updateReaderState, zoom, bookmarks, currentPage, mode, detectionResult, nextPanel, prevPanel, debugMode])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -232,10 +402,35 @@ export function Reader() {
   }, [])
 
   const handleDoubleClick = useCallback(() => {
-    updateReaderState({ zoom: zoom === 1 ? 2 : 1 })
-  }, [zoom, updateReaderState])
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+      setCinematicPaused(p => !p)
+      if (!cinematicPaused && currentPanel) {
+        applyFocusToPanel(currentPanel)
+      }
+    } else {
+      updateReaderState({ zoom: zoom === 1 ? 2 : 1 })
+    }
+  }, [mode, detectionResult, cinematicPaused, currentPanel, applyFocusToPanel, zoom, updateReaderState])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const width = rect.width
+
+      if (x < width * 0.3) {
+        prevPanel()
+      } else if (x > width * 0.7) {
+        nextPanel()
+      } else {
+        setCinematicPaused(p => !p)
+        if (cinematicPaused && currentPanel) {
+          applyFocusToPanel(currentPanel)
+        }
+      }
+      return
+    }
+
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const width = rect.width
@@ -245,7 +440,7 @@ export function Reader() {
     } else if (x > width * 0.7) {
       nextPage()
     }
-  }, [nextPage, prevPage])
+  }, [mode, detectionResult, cinematicIndex, prevPanel, nextPanel, cinematicPaused, currentPanel, applyFocusToPanel, prevPage, nextPage])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -259,14 +454,140 @@ export function Reader() {
     }
   }, [])
 
-  const currentPanel = mode === 'cinematic' && panels.length > 0 ? panels[cinematicIndex] : null
-  const total = doc?.getPageCount() || comic?.pageCount || 0
+  const toggleCinematicMode = useCallback(() => {
+    if (mode === 'cinematic') {
+      updateReaderState({ mode: 'page' })
+      setDetectionResult(null)
+      setPanelFocus(null)
+      setCinematicPaused(false)
+    } else {
+      updateReaderState({ mode: 'cinematic' })
+      if (doc) {
+        setIsPanelsLoading(true)
+        loadPanels(doc, currentPage)
+      }
+    }
+  }, [mode, updateReaderState, doc, currentPage, loadPanels])
 
   if (!comic) {
     return (
       <div className="flex h-screen items-center justify-center bg-cw-bg">
         <p className="text-cw-text-muted">No se encontró el cómic.</p>
       </div>
+    )
+  }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+            className="h-12 w-12 border-[3px] border-cw-accent border-t-transparent rounded-full"
+          />
+        </div>
+      )
+    }
+
+    if (error) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex h-full flex-col items-center justify-center gap-5"
+        >
+          <p className="text-lg text-cw-text">{error}</p>
+          <button
+            onClick={closeReader}
+            className="rounded-full bg-cw-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cw-accent-hover"
+          >
+            Volver a biblioteca
+          </button>
+        </motion.div>
+      )
+    }
+
+    if (!currentUrl) return null
+
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
+      const panel = currentPanel
+      const focus = panelFocus || { x: panel.x + panel.width / 2, y: panel.y + panel.height / 2, scale: 1 }
+
+      return (
+        <motion.div
+          key={`${currentPage}-${cinematicIndex}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+          className="relative h-full w-full"
+          style={{
+            transform: `scale(${focus.scale})`,
+            transition: isFocusAnimating ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
+            transformOrigin: `${focus.x * 100}% ${focus.y * 100}%`,
+          }}
+        >
+          <img
+            src={currentUrl}
+            alt={`Página ${currentPage + 1}`}
+            className="h-full w-full object-contain"
+            draggable={false}
+          />
+
+          {debugMode && (
+            <div className="absolute inset-0 pointer-events-none">
+              {detectionResult.panels.map((p, i) => (
+                <div
+                  key={i}
+                  className="absolute border-2"
+                  style={{
+                    left: `${p.x * 100}%`,
+                    top: `${p.y * 100}%`,
+                    width: `${p.width * 100}%`,
+                    height: `${p.height * 100}%`,
+                    borderColor: i === cinematicIndex ? '#ff7b54' : 'rgba(255,255,255,0.3)',
+                    backgroundColor: i === cinematicIndex ? 'rgba(255,123,84,0.1)' : 'rgba(255,255,255,0.03)',
+                  }}
+                >
+                  <span
+                    className="absolute -top-5 left-0 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-white"
+                  >
+                    {i + 1}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isPanelsLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-cw-bg/50">
+              <div className="h-8 w-8 border-2 border-cw-accent border-t-transparent rounded-full" />
+            </div>
+          )}
+        </motion.div>
+      )
+    }
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="relative"
+        style={{
+          transform: `scale(${zoom})`,
+          transition: 'transform 0.2s ease-out',
+          maxWidth: '100%',
+          maxHeight: '100%',
+        }}
+      >
+        <img
+          src={currentUrl}
+          alt={`Página ${currentPage + 1}`}
+          className="max-h-screen max-w-full object-contain"
+          draggable={false}
+        />
+      </motion.div>
     )
   }
 
@@ -302,7 +623,9 @@ export function Reader() {
                   {comic.title}
                 </span>
                 <span className="text-[11px] font-mono uppercase tracking-widest text-cw-text-muted">
-                  Issue · Page {currentPage + 1} / {total}
+                  {mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0
+                    ? `Panel ${cinematicIndex + 1} / ${detectionResult.panels.length} · Page ${currentPage + 1} / ${total}`
+                    : `Issue · Page ${currentPage + 1} / ${total}`}
                 </span>
               </div>
             </div>
@@ -326,16 +649,20 @@ export function Reader() {
                 <ZoomIn className="h-4 w-4" />
               </button>
               <button
-                onClick={() => updateReaderState({ showModeSelector: !showModeSelector })}
-                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
-                title="Modo de lectura"
+                onClick={toggleCinematicMode}
+                className={`rounded-full p-2 backdrop-blur-md transition-colors border ${
+                  mode === 'cinematic'
+                    ? 'bg-cw-accent/80 text-white border-cw-accent'
+                    : 'bg-cw-surface/60 text-cw-text border-cw-border/50 hover:bg-cw-surface-2'
+                }`}
+                title="Focus Reading"
               >
                 <BookOpen className="h-4 w-4" />
               </button>
               <button
-                onClick={() => updateReaderState({ showSettings: !showSettings })}
+                onClick={() => updateReaderState({ showModeSelector: !showModeSelector })}
                 className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
-                title="Ajustes"
+                title="Modo de lectura"
               >
                 <Settings className="h-4 w-4" />
               </button>
@@ -371,7 +698,16 @@ export function Reader() {
                   onClick={() => {
                     updateReaderState({ mode: item.mode })
                     if (item.mode === 'cinematic') {
+                      setDetectionResult(null)
+                      setCinematicPaused(false)
+                      setPanelFocus(null)
                       setIsPanelsLoading(true)
+                      if (doc) {
+                        loadPanels(doc, currentPage)
+                      }
+                    } else {
+                      setDetectionResult(null)
+                      setPanelFocus(null)
                     }
                   }}
                   className={`rounded-xl px-5 py-2.5 text-sm font-medium transition-colors ${
@@ -459,95 +795,31 @@ export function Reader() {
                 <Bookmark className="h-4 w-4" />
                 {bookmarks.includes(currentPage) ? 'Guardado' : 'Guardar página (B)'}
               </button>
+
+              <button
+                onClick={() => updateReaderState({ debugMode: !debugMode })}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition-colors ${
+                  debugMode
+                    ? 'bg-cw-accent/20 text-cw-accent'
+                    : 'bg-cw-surface-2 text-cw-text hover:bg-cw-border'
+                }`}
+              >
+                <span className="font-mono text-xs">DEBUG</span>
+                {debugMode ? 'ON' : 'OFF'}
+              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {isLoading && (
-        <div className="flex h-full items-center justify-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-            className="h-12 w-12 border-[3px] border-cw-accent border-t-transparent rounded-full"
-          />
-        </div>
-      )}
-
-      {error && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex h-full flex-col items-center justify-center gap-5"
-        >
-          <p className="text-lg text-cw-text">{error}</p>
-          <button
-            onClick={closeReader}
-            className="rounded-full bg-cw-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cw-accent-hover"
-          >
-            Volver a biblioteca
-          </button>
-        </motion.div>
-      )}
-
-      {!isLoading && !error && currentUrl && (
-        <div
-          className="flex h-full items-center justify-center"
-          onClick={handleClick}
-          onDoubleClick={handleDoubleClick}
-          onWheel={handleWheel}
-        >
-          {mode === 'cinematic' && panels.length > 0 && currentPanel ? (
-            <motion.div
-              key={`${currentPage}-${cinematicIndex}`}
-              initial={{ scale: 1.04, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 28 }}
-              className="relative"
-              style={{
-                width: '100%',
-                maxWidth: '100%',
-                height: '100%',
-              }}
-            >
-              <img
-                src={currentUrl}
-                alt={`Página ${currentPage + 1}`}
-                className="h-full w-full object-contain"
-                style={{
-                  objectPosition: `${currentPanel.x * 100}% ${currentPanel.y * 100}%`,
-                  objectFit: 'cover',
-                }}
-              />
-              {isPanelsLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-cw-bg/50">
-                  <div className="h-8 w-8 border-2 border-cw-accent border-t-transparent rounded-full" />
-                </div>
-              )}
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="relative"
-              style={{
-                transform: `scale(${zoom})`,
-                transition: 'transform 0.2s ease-out',
-                maxWidth: '100%',
-                maxHeight: '100%',
-              }}
-            >
-              <img
-                src={currentUrl}
-                alt={`Página ${currentPage + 1}`}
-                className="max-h-screen max-w-full object-contain"
-                draggable={false}
-              />
-            </motion.div>
-          )}
-        </div>
-      )}
+      <div
+        className="flex h-full w-full"
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onWheel={handleWheel}
+      >
+        {renderContent()}
+      </div>
 
       <AnimatePresence>
         {showControls && !isLoading && !error && (
@@ -610,6 +882,20 @@ export function Reader() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {mode === 'cinematic' && detectionResult && !showControls && (
+        <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
+          <div className="flex items-center gap-2 rounded-full bg-cw-surface/60 px-4 py-1.5 backdrop-blur-md border border-cw-border/50">
+            <span className="font-mono text-[11px] text-cw-text-muted">
+              {cinematicIndex + 1} / {detectionResult.panels.length}
+            </span>
+            <span className="text-cw-text-dim">·</span>
+            <span className="text-[11px] text-cw-text-muted uppercase tracking-wider">
+              {detectionResult.confidence}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

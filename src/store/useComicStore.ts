@@ -38,6 +38,7 @@ const defaultReaderState: ReaderState = {
   showSettings: false,
   showModeSelector: false,
   bookmarks: [],
+  debugMode: false,
 }
 
 export const useComicStore = create<ComicStore>((set, get) => ({

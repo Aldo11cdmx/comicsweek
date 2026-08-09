@@ -27,6 +27,7 @@ export interface ReaderState {
   showSettings: boolean
   showModeSelector: boolean
   bookmarks: number[]
+  debugMode: boolean
 }
 
 export interface ImportResult {
@@ -45,4 +46,26 @@ export interface Page {
   height: number
   naturalWidth: number
   naturalHeight: number
+}
+
+export interface ComicPanel {
+  x: number
+  y: number
+  width: number
+  height: number
+  confidence: number
+  area: number
+  aspectRatio: number
+  index: number
+}
+
+export type DetectionConfidence = 'high' | 'medium' | 'low'
+export type DetectionStatus = 'SUCCESS' | 'LOW_CONFIDENCE' | 'NO_PANELS' | 'INVALID' | 'ERROR'
+
+export interface DetectionResult {
+  status: DetectionStatus
+  panels: ComicPanel[]
+  confidence: DetectionConfidence
+  rawCandidates: number
+  debugImageUrl?: string
 }
