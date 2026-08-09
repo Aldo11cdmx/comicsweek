@@ -14,49 +14,51 @@ export function Collections() {
     { id: 'reading', label: 'Leyendo', count: reading.length, comics: reading },
     { id: 'finished', label: 'Terminados', count: finished.length, comics: finished },
     { id: 'new', label: 'Nuevos', count: newComics.length, comics: newComics },
-  ]
+  ] as const
 
-  const activeCollection = collections.find(c => c.id === filter) || collections[0]
+  const active = collections.find(c => c.id === filter) || collections[0]
 
   return (
-    <section className="mx-auto max-w-7xl px-6 py-12">
-      <div className="mb-8">
-        <h2 className="font-serif text-3xl font-bold text-cw-text md:text-4xl">Colecciones</h2>
+    <section className="mx-auto max-w-7xl px-6 py-16">
+      <div className="mb-10">
+        <h2 className="font-display text-3xl font-bold text-cw-text md:text-4xl">Tu estantería</h2>
         <p className="mt-2 text-cw-text-muted">
-          Organiza tus historias
+          Todas tus historias, en un solo lugar.
         </p>
       </div>
 
-      <div className="mb-8 flex flex-wrap gap-2">
-        {collections.map(collection => (
-          <button
-            key={collection.id}
-            onClick={() => setFilter(collection.id as any)}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
-              filter === collection.id
-                ? 'bg-cw-accent text-white'
-                : 'bg-cw-surface text-cw-text-muted hover:text-cw-text'
-            }`}
-          >
-            {collection.label}
-            <span className={`ml-2 rounded-full px-1.5 py-0.5 text-xs ${
-              filter === collection.id ? 'bg-white/20' : 'bg-cw-surface-2'
-            }`}>
-              {collection.count}
-            </span>
-          </button>
-        ))}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1 rounded-xl border border-cw-border bg-cw-surface p-1">
+          {collections.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setFilter(tab.id)}
+              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
+                filter === tab.id
+                  ? 'bg-cw-surface-2 text-cw-text shadow-sm'
+                  : 'text-cw-text-muted hover:text-cw-text'
+              }`}
+            >
+              {tab.label}
+              <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] ${
+                filter === tab.id ? 'bg-cw-accent/20 text-cw-accent' : 'bg-cw-surface-2 text-cw-text-muted'
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {activeCollection.comics.length === 0 ? (
-        <div className="py-20 text-center">
+      {active.comics.length === 0 ? (
+        <div className="py-24 text-center">
           <p className="text-lg text-cw-text-muted">
-            No hay historias en esta colección.
+            No hay historias en esta sección.
           </p>
         </div>
       ) : (
-        <motion.div layout className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {activeCollection.comics.map((comic, i) => (
+        <motion.div layout className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {active.comics.map((comic, i) => (
             <ComicCard key={comic.id} comic={comic} index={i} />
           ))}
         </motion.div>

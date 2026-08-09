@@ -52,7 +52,7 @@ export function ImportZone() {
       setTimeout(() => {
         setSuccess(null)
         setIsImporting(false)
-      }, 2000)
+      }, 2500)
     } catch (error) {
       console.error('Error importing comic:', error)
       setIsImporting(false)
@@ -75,16 +75,16 @@ export function ImportZone() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="mx-auto max-w-3xl px-6 py-16"
+      className="mx-auto max-w-3xl px-6 py-20"
     >
-      <div className="text-center mb-12">
-        <h2 className="font-serif text-3xl font-bold text-cw-text md:text-4xl">
+      <div className="text-center mb-14">
+        <h2 className="font-display text-3xl font-bold text-cw-text md:text-4xl">
           Importa tu historia
         </h2>
-        <p className="mt-4 text-lg text-cw-text-muted">
+        <p className="mt-4 text-cw-text-muted">
           Arrastra tu cómic aquí o explora para seleccionar
         </p>
-        <p className="mt-2 text-sm text-cw-text-muted">
+        <p className="mt-2 text-xs text-cw-text-muted">
           CBZ · ZIP · PDF
         </p>
       </div>
@@ -93,13 +93,13 @@ export function ImportZone() {
         {success ? (
           <motion.div
             key="success"
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-12"
+            exit={{ opacity: 0, scale: 0.96 }}
+            className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-cw-border bg-cw-surface p-14"
           >
-            <CheckCircle2 className="h-16 w-16 text-emerald-400" />
-            <p className="text-xl font-semibold text-cw-text">Añadido a tu biblioteca</p>
+            <CheckCircle2 className="h-12 w-12 text-cw-accent" />
+            <p className="font-display text-xl font-bold text-cw-text">Añadido a tu biblioteca</p>
             <p className="text-cw-text-muted">{success}</p>
           </motion.div>
         ) : (
@@ -112,10 +112,10 @@ export function ImportZone() {
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onClick={() => document.getElementById('file-input')?.click()}
-            className={`relative cursor-pointer overflow-hidden rounded-2xl border-2 border-dashed p-16 text-center transition-all ${
+            className={`relative cursor-pointer overflow-hidden rounded-2xl border border-dashed p-16 text-center transition-all duration-300 ${
               isDragging
-                ? 'border-cw-accent bg-cw-accent/5 scale-[1.02]'
-                : 'border-cw-border hover:border-cw-text-muted hover:bg-cw-surface/50'
+                ? 'border-cw-accent bg-cw-accent/5 scale-[1.01]'
+                : 'border-cw-border hover:border-cw-text-muted/50 hover:bg-cw-surface/60'
             }`}
           >
             <input
@@ -131,20 +131,22 @@ export function ImportZone() {
               className="hidden"
             />
 
-            <div className="flex flex-col items-center gap-4">
-              <div className={`flex h-20 w-20 items-center justify-center rounded-full transition-colors ${
-                isDragging ? 'bg-cw-accent/20 text-cw-accent' : 'bg-cw-surface-2 text-cw-text-muted'
+            <div className="flex flex-col items-center gap-5">
+              <div className={`flex h-16 w-16 items-center justify-center rounded-xl border transition-colors duration-300 ${
+                isDragging
+                  ? 'border-cw-accent/50 bg-cw-accent/10 text-cw-accent'
+                  : 'border-cw-border bg-cw-surface-2 text-cw-text-muted'
               }`}>
                 {isImporting ? (
                   <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    className="h-8 w-8 border-2 border-cw-accent border-t-transparent rounded-full"
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                    className="h-6 w-6 border-2 border-cw-accent border-t-transparent rounded-full"
                   />
                 ) : isDragging ? (
-                  <Upload className="h-8 w-8" />
+                  <Upload className="h-6 w-6" />
                 ) : (
-                  <FileText className="h-8 w-8" />
+                  <FileText className="h-6 w-6" />
                 )}
               </div>
 

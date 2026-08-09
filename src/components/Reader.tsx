@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, BookOpen, Maximize, Minimize, Bookmark } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, BookOpen, Maximize, Minimize, Bookmark, Settings } from 'lucide-react'
 import { useComicStore } from '../store/useComicStore'
 import { ComicDocument } from '../engine/ComicDocument'
 import { ReadingModes } from '../engine/ReadingModes'
@@ -282,53 +282,66 @@ export function Reader() {
       <AnimatePresence>
         {showControls && (
           <motion.div
-            initial={{ opacity: 0, y: 0 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 0 }}
-            className="absolute inset-x-0 top-0 z-10 flex items-center justify-between bg-gradient-to-b from-cw-bg/90 to-transparent p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="absolute inset-x-0 top-0 z-10 flex items-start justify-between bg-gradient-to-b from-cw-bg/80 via-cw-bg/40 to-transparent p-5"
           >
-            <button
-              onClick={closeReader}
-              className="flex items-center justify-center rounded-full bg-cw-surface/80 p-2 text-cw-text backdrop-blur-sm transition-colors hover:bg-cw-surface-2"
-              title="Cerrar lector (Esc)"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={closeReader}
+                className="flex items-center justify-center rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
+                title="Cerrar lector (Esc)"
+              >
+                <X className="h-5 w-5" />
+              </button>
 
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-cw-text">
-                {currentPage + 1} / {total}
-              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="font-display text-sm font-bold text-cw-text">
+                  {comic.title}
+                </span>
+                <span className="text-[11px] font-mono uppercase tracking-widest text-cw-text-muted">
+                  Issue · Page {currentPage + 1} / {total}
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center gap-1">
               <button
                 onClick={() => updateReaderState({ zoom: Math.max(0.5, zoom - 0.2) })}
-                className="rounded-full bg-cw-surface/80 p-2 text-cw-text backdrop-blur-sm transition-colors hover:bg-cw-surface-2"
+                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
                 title="Zoom - (-)"
               >
                 <ZoomOut className="h-4 w-4" />
               </button>
-              <span className="font-mono text-xs text-cw-text-muted w-12 text-center">
+              <span className="font-mono text-[11px] text-cw-text-muted w-14 text-center">
                 {Math.round(zoom * 100)}%
               </span>
               <button
                 onClick={() => updateReaderState({ zoom: Math.min(5, zoom + 0.2) })}
-                className="rounded-full bg-cw-surface/80 p-2 text-cw-text backdrop-blur-sm transition-colors hover:bg-cw-surface-2"
+                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
                 title="Zoom + (+)"
               >
                 <ZoomIn className="h-4 w-4" />
               </button>
               <button
                 onClick={() => updateReaderState({ showModeSelector: !showModeSelector })}
-                className="rounded-full bg-cw-surface/80 p-2 text-cw-text backdrop-blur-sm transition-colors hover:bg-cw-surface-2"
+                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
                 title="Modo de lectura"
               >
                 <BookOpen className="h-4 w-4" />
               </button>
               <button
+                onClick={() => updateReaderState({ showSettings: !showSettings })}
+                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
+                title="Ajustes"
+              >
+                <Settings className="h-4 w-4" />
+              </button>
+              <button
                 onClick={toggleFullscreen}
-                className="rounded-full bg-cw-surface/80 p-2 text-cw-text backdrop-blur-sm transition-colors hover:bg-cw-surface-2"
+                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
                 title="Pantalla completa (F)"
               >
                 {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
@@ -341,12 +354,13 @@ export function Reader() {
       <AnimatePresence>
         {showModeSelector && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-cw-surface border border-cw-border p-2 shadow-2xl"
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-cw-surface border border-cw-border p-1.5 shadow-2xl backdrop-blur-xl"
           >
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
               {([
                 { mode: 'page', label: 'Página' },
                 { mode: 'vertical', label: 'Vertical' },
@@ -360,7 +374,7 @@ export function Reader() {
                       setIsPanelsLoading(true)
                     }
                   }}
-                  className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                  className={`rounded-xl px-5 py-2.5 text-sm font-medium transition-colors ${
                     mode === item.mode
                       ? 'bg-cw-accent text-white'
                       : 'text-cw-text hover:bg-cw-surface-2'
@@ -377,16 +391,17 @@ export function Reader() {
       <AnimatePresence>
         {showSettings && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="absolute right-4 top-20 z-20 w-72 rounded-2xl bg-cw-surface border border-cw-border p-4 shadow-2xl"
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-5 top-20 z-20 w-72 rounded-2xl bg-cw-surface border border-cw-border p-5 shadow-2xl backdrop-blur-xl"
           >
-            <h3 className="mb-4 font-serif text-lg font-bold text-cw-text">Ajustes</h3>
+            <h3 className="mb-5 font-display text-lg font-bold text-cw-text">Ajustes</h3>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm text-cw-text-muted">Dirección de lectura</label>
+                <label className="mb-2 block text-xs text-cw-text-muted">Dirección de lectura</label>
                 <div className="flex gap-2">
                   {([
                     { dir: 'ltr', label: '← →' },
@@ -408,7 +423,7 @@ export function Reader() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm text-cw-text-muted">Zoom</label>
+                <label className="mb-2 block text-xs text-cw-text-muted">Zoom</label>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => updateReaderState({ zoom: Math.max(0.5, zoom - 0.2) })}
@@ -453,8 +468,8 @@ export function Reader() {
         <div className="flex h-full items-center justify-center">
           <motion.div
             animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-            className="h-12 w-12 border-4 border-cw-accent border-t-transparent rounded-full"
+            transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+            className="h-12 w-12 border-[3px] border-cw-accent border-t-transparent rounded-full"
           />
         </div>
       )}
@@ -463,7 +478,7 @@ export function Reader() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="flex h-full flex-col items-center justify-center gap-4"
+          className="flex h-full flex-col items-center justify-center gap-5"
         >
           <p className="text-lg text-cw-text">{error}</p>
           <button
@@ -485,10 +500,10 @@ export function Reader() {
           {mode === 'cinematic' && panels.length > 0 && currentPanel ? (
             <motion.div
               key={`${currentPage}-${cinematicIndex}`}
-              initial={{ scale: 1.05, opacity: 0 }}
+              initial={{ scale: 1.04, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 28 }}
               className="relative"
               style={{
                 width: '100%',
@@ -537,21 +552,22 @@ export function Reader() {
       <AnimatePresence>
         {showControls && !isLoading && !error && (
           <motion.div
-            initial={{ opacity: 0, y: 0 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 0 }}
-            className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between bg-gradient-to-t from-cw-bg/90 to-transparent p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between bg-gradient-to-t from-cw-bg/80 via-cw-bg/40 to-transparent p-5"
           >
             <button
               onClick={prevPage}
               disabled={currentPage <= 0}
-              className="flex items-center justify-center rounded-full bg-cw-surface/80 p-3 text-cw-text backdrop-blur-sm transition-all hover:bg-cw-surface-2 disabled:opacity-30"
+              className="flex items-center justify-center rounded-full bg-cw-surface/60 p-3 text-cw-text backdrop-blur-md transition-all hover:bg-cw-surface-2 disabled:opacity-30 border border-cw-border/50"
               title="Página anterior (←)"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
 
-            <div className="flex-1 px-4">
+            <div className="flex-1 px-6">
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="font-mono text-cw-text">
                   {currentPage + 1} / {total}
@@ -571,7 +587,7 @@ export function Reader() {
             <button
               onClick={nextPage}
               disabled={currentPage >= total - 1}
-              className="flex items-center justify-center rounded-full bg-cw-accent p-3 text-white backdrop-blur-sm transition-all hover:bg-cw-accent-hover disabled:opacity-30"
+              className="flex items-center justify-center rounded-full bg-cw-accent p-3 text-white backdrop-blur-md transition-all hover:bg-cw-accent-hover disabled:opacity-30"
               title="Página siguiente (→)"
             >
               <ChevronRight className="h-6 w-6" />
@@ -583,10 +599,11 @@ export function Reader() {
       <AnimatePresence>
         {bookmarks.includes(currentPage) && showControls && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="absolute right-4 bottom-24 z-10 flex items-center gap-2 rounded-full bg-cw-warm/20 px-3 py-1.5 text-cw-warm backdrop-blur-sm"
+            exit={{ opacity: 0, scale: 0.85 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+            className="absolute right-5 bottom-24 z-10 flex items-center gap-2 rounded-full bg-cw-warm/15 px-3.5 py-1.5 text-cw-warm backdrop-blur-md border border-cw-warm/20"
           >
             <Bookmark className="h-4 w-4 fill-current" />
             <span className="text-xs font-medium">Marcado</span>
