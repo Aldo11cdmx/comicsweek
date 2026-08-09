@@ -1,5 +1,5 @@
 import { motion } from 'motion/react'
-import { ZoomIn, ZoomOut, BookOpen, Maximize } from 'lucide-react'
+import { ZoomIn, ZoomOut, BookOpen, Maximize, Sun, Moon, Share2, BookOpenCheck } from 'lucide-react'
 import type { ViewerMode } from '../hooks/useManualZoom'
 import { ImageAdjustments } from '../components/ImageAdjustments'
 
@@ -15,6 +15,12 @@ export function ViewerToolbar({
   onContrastChange,
   onResetImageAdjustments,
   isImageDefault,
+  nightMode,
+  onCycleNightMode,
+  onExportPanel,
+  showExport,
+  doublePageMode,
+  onToggleDoublePage,
 }: {
   zoom: number
   mode: ViewerMode
@@ -27,7 +33,16 @@ export function ViewerToolbar({
   onContrastChange: (value: number) => void
   onResetImageAdjustments: () => void
   isImageDefault: boolean
+  nightMode: 'normal' | 'dark' | 'sepia'
+  onCycleNightMode: () => void
+  onExportPanel?: () => void
+  showExport?: boolean
+  doublePageMode?: boolean
+  onToggleDoublePage?: () => void
 }) {
+  const nightTitle = nightMode === 'dark' ? 'Modo Oscuro' : nightMode === 'sepia' ? 'Modo Sepia' : 'Modo Normal'
+  const NightIcon = nightMode === 'dark' ? Moon : nightMode === 'sepia' ? Sun : Sun
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -66,6 +81,38 @@ export function ViewerToolbar({
         onReset={onResetImageAdjustments}
         isDefault={isImageDefault}
       />
+
+      <button
+        onClick={onCycleNightMode}
+        className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+          nightMode !== 'normal' ? 'bg-cw-accent/20 text-cw-accent' : 'text-cw-text hover:bg-cw-surface-2'
+        }`}
+        title={nightTitle}
+      >
+        <NightIcon className="h-4 w-4" />
+      </button>
+
+      {showExport && onExportPanel && (
+        <button
+          onClick={onExportPanel}
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-cw-text transition-colors hover:bg-cw-surface-2"
+          title="Exportar panel (E)"
+        >
+          <Share2 className="h-4 w-4" />
+        </button>
+      )}
+
+      {onToggleDoublePage && (
+        <button
+          onClick={onToggleDoublePage}
+          className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+            doublePageMode ? 'bg-cw-accent/20 text-cw-accent' : 'text-cw-text hover:bg-cw-surface-2'
+          }`}
+          title={doublePageMode ? 'Doble página (D)' : 'Página simple (D)'}
+        >
+          <BookOpenCheck className="h-4 w-4" />
+        </button>
+      )}
 
       <button
         onClick={onToggleMode}

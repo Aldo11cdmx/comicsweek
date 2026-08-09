@@ -117,6 +117,18 @@ export class ComicDocument {
     return this.pages.length
   }
 
+  async getPage(index: number): Promise<any> {
+    if (index < 0 || index >= this.pages.length) {
+      throw new Error('Page index out of bounds')
+    }
+
+    if (this.comic.format === 'pdf' && this.pdfDoc) {
+      return await this.pdfDoc.getPage(index + 1)
+    }
+
+    throw new Error('getPage only supported for PDF format')
+  }
+
   dispose(): void {
     this.pages.forEach(page => {
       if (page.url) URL.revokeObjectURL(page.url)

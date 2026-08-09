@@ -7,7 +7,8 @@ import { ReadingModes } from '../engine/ReadingModes'
 import { detectPanels } from '../engine/CinematicDetector'
 import { ViewerToolbar } from '../components/ViewerToolbar'
 import { ContinueBanner } from '../components/ContinueBanner'
-import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress } from '../hooks'
+import { ThumbnailGrid } from '../components/ThumbnailGrid'
+import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress, useNightMode, useReadingStats } from '../hooks'
 import { cn } from '../lib/utils'
 import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel, ReadingProgress } from '../types'
 
@@ -24,10 +25,17 @@ export function Reader() {
   const { currentComicId, currentReaderState, updateReaderState, closeReader: storeCloseReader, updateComic, getComicFile, comics } = useComicStore()
   const { mode: viewerMode, toggleMode } = useViewerMode()
   const { brightness, contrast, setBrightness, setContrast, reset: resetImageAdjustments, isDefault: isImageDefault } = useImageAdjustments()
+  const { mode: nightMode, cycle: cycleNightMode, filter: nightFilter } = useNightMode()
   const { getProgress, saveProgressData, clearProgress } = useReadingProgress()
+  const { recordSession } = useReadingStats()
+  const sessionStartRef = useRef<number>(Date.now())
+  const sessionStartPageRef = useRef<number>(0)
   const [pendingProgress, setPendingProgress] = useState<ReadingProgress | null>(null)
   const [bannerVisible, setBannerVisible] = useState(false)
   const bannerTimerRef = useRef<number | null>(null)
+  const [doublePageMode, setDoublePageMode] = useState(false)
+  const [showThumbnails, setShowThumbnails] = useState(false)
+  const [leftPageUrl, setLeftPageUrl] = useState<string>('')
   const comic = comics.find(c => c.id === currentComicId)
   const [doc, setDoc] = useState<ComicDocument | null>(null)
   const [currentUrl, setCurrentUrl] = useState<string>('')
@@ -206,6 +214,8 @@ export function Reader() {
     setPanelFocus(null)
     manualZoom.resetZoom()
     setPendingProgress(null)
+    sessionStartRef.current = Date.now()
+    sessionStartPageRef.current = currentPage
 
     try {
       const file = await getComicFile(currentComicId)
@@ -330,6 +340,19 @@ export function Reader() {
   }, [currentPage, doc, mode, loadPanels, manualZoom])
 
   useEffect(() => {
+    if (!doublePageMode || !doc || currentPage === 0) {
+      setLeftPageUrl('')
+      return
+    }
+    const leftIndex = currentPage - 1
+    doc.getPageUrl(leftIndex).then(url => {
+      setLeftPageUrl(url)
+    }).catch(() => {
+      setLeftPageUrl('')
+    })
+  }, [doublePageMode, currentPage, doc])
+
+  useEffect(() => {
     if (!containerRef.current || mode !== 'cinematic') return
 
     resizeObserverRef.current?.disconnect()
@@ -446,6 +469,53 @@ export function Reader() {
     }
   }, [mode, detectionResult, manualZoom, nextPanel, prevPanel])
 
+  const exportPanel = useCallback(async () => {
+    if (!currentPanel || !currentUrl || !doc) return
+    try {
+      const page = await doc.getPage(currentPage)
+      const viewport = page.getViewport({ scale: 1 })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      await page.render({ canvasContext: ctx, viewport }).promise
+
+      const filter = `brightness(${brightness}) contrast(${contrast}) ${nightFilter}`
+      ctx.filter = filter
+      ctx.drawImage(canvas, 0, 0)
+      ctx.filter = 'none'
+
+      const panelX = currentPanel.x * viewport.width
+      const panelY = currentPanel.y * viewport.height
+      const panelW = currentPanel.width * viewport.width
+      const panelH = currentPanel.height * viewport.height
+
+      const cropCanvas = document.createElement('canvas')
+      cropCanvas.width = panelW
+      cropCanvas.height = panelH
+      const cropCtx = cropCanvas.getContext('2d')
+      if (!cropCtx) return
+
+      cropCtx.drawImage(canvas, panelX, panelY, panelW, panelH, 0, 0, panelW, panelH)
+
+      cropCanvas.toBlob(blob => {
+        if (!blob) return
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `comic-pagina${currentPage + 1}-panel${cinematicIndex + 1}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }, 'image/png')
+    } catch (error) {
+      console.error('Error exporting panel:', error)
+    }
+  }, [currentPanel, currentUrl, doc, currentPage, cinematicIndex, brightness, contrast, nightFilter])
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowLeft':
@@ -501,13 +571,37 @@ export function Reader() {
         break
       case 'd':
       case 'D':
-        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.ctrlKey || e.metaKey) {
           e.preventDefault()
           updateReaderState({ debugMode: !debugMode })
+        } else if (!e.altKey && !e.shiftKey) {
+          e.preventDefault()
+          setDoublePageMode(prev => !prev)
+        }
+        break
+      case 'n':
+      case 'N':
+        if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault()
+          cycleNightMode()
+        }
+        break
+      case 'g':
+      case 'G':
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && doc) {
+          e.preventDefault()
+          setShowThumbnails(prev => !prev)
+        }
+        break
+      case 'e':
+      case 'E':
+        if (!e.ctrlKey && !e.metaKey && !e.altKey && mode === 'cinematic' && currentPanel) {
+          e.preventDefault()
+          exportPanel()
         }
         break
     }
-  }, [prevPage, nextPage, isFullscreen, showSettings, showModeSelector, storeCloseReader, updateReaderState, bookmarks, currentPage, mode, cinematicActive, detectionResult, nextPanel, prevPage, debugMode, manualZoom, toggleMode])
+  }, [prevPage, nextPage, isFullscreen, showSettings, showModeSelector, storeCloseReader, updateReaderState, bookmarks, currentPage, mode, cinematicActive, detectionResult, nextPanel, prevPage, debugMode, manualZoom, toggleMode, cycleNightMode, doublePageMode, doc, exportPanel])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -579,10 +673,14 @@ export function Reader() {
         brightness,
         contrast,
       })
+
+      const pagesRead = Math.max(1, Math.abs(currentPage - sessionStartPageRef.current) + 1)
+      const durationMs = Date.now() - sessionStartRef.current
+      recordSession(pagesRead, durationMs, comic.title)
     }
     updateReaderState({ currentPage: 0 })
     storeCloseReader()
-  }, [comic, currentComicId, currentPage, cinematicIndex, viewerMode, brightness, contrast, saveProgressData, updateReaderState, storeCloseReader])
+  }, [comic, currentComicId, currentPage, cinematicIndex, viewerMode, brightness, contrast, saveProgressData, updateReaderState, storeCloseReader, recordSession])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -671,7 +769,7 @@ export function Reader() {
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
             className="h-full w-full object-contain"
-            style={{ filter: `brightness(${brightness}) contrast(${contrast})` }}
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
 
@@ -752,6 +850,35 @@ export function Reader() {
       )
     }
 
+    if (doublePageMode && viewerMode === 'free' && leftPageUrl) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center gap-1"
+          style={{
+            transform: `scale(${zoom})`,
+            transition: 'transform 0.2s ease-out',
+          }}
+        >
+          <img
+            src={leftPageUrl}
+            alt={`Página ${currentPage}`}
+            className="max-h-screen max-w-[50vw] object-contain"
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
+          />
+          <img
+            src={currentUrl}
+            alt={`Página ${currentPage + 1}`}
+            className="max-h-screen max-w-[50vw] object-contain"
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
+          />
+        </motion.div>
+      )
+    }
+
     if (viewerMode === 'free' || !cinematicActive) {
       return (
         <motion.div
@@ -769,7 +896,7 @@ export function Reader() {
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
             className="max-h-screen max-w-full object-contain"
-            style={{ filter: `brightness(${brightness}) contrast(${contrast})` }}
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
         </motion.div>
@@ -793,6 +920,7 @@ export function Reader() {
           alt={`Página ${currentPage + 1}`}
           className="max-h-screen max-w-full object-contain"
           draggable={false}
+          style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
         />
       </motion.div>
     )
@@ -832,13 +960,17 @@ export function Reader() {
                 <span className="font-display text-sm font-bold text-cw-text">
                   {comic.title}
                 </span>
-                <span className="text-[11px] font-mono uppercase tracking-widest text-cw-text-muted">
+                <button
+                  onClick={() => setShowThumbnails(true)}
+                  className="text-left text-[11px] font-mono uppercase tracking-widest text-cw-text-muted transition-colors hover:text-cw-accent"
+                  title="Ver miniaturas (G)"
+                >
                   {viewerMode === 'free'
                     ? `Page ${currentPage + 1} / ${total}`
                     : cinematicActive && detectionResult && detectionResult.panels.length > 0
                       ? `Panel ${cinematicIndex + 1} / ${detectionResult.panels.length} · Page ${currentPage + 1} / ${total}`
                       : `Issue · Page ${currentPage + 1} / ${total}`}
-                </span>
+                </button>
               </div>
             </div>
 
@@ -1031,7 +1163,7 @@ export function Reader() {
       </AnimatePresence>
 
       <div
-        className="flex h-full w-full"
+        className="flex h-full w-full items-center justify-center"
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
@@ -1113,6 +1245,12 @@ export function Reader() {
         onContrastChange={setContrast}
         onResetImageAdjustments={resetImageAdjustments}
         isImageDefault={isImageDefault}
+        nightMode={nightMode}
+        onCycleNightMode={cycleNightMode}
+        onExportPanel={exportPanel}
+        showExport={mode === 'cinematic' && !!currentPanel}
+        doublePageMode={doublePageMode}
+        onToggleDoublePage={() => setDoublePageMode(prev => !prev)}
       />
 
       {mode === 'cinematic' && detectionResult && !showControls && (
@@ -1136,6 +1274,20 @@ export function Reader() {
           totalPages={total}
           onContinue={handleContinue}
           onRestart={handleRestart}
+        />
+      )}
+
+      {showThumbnails && doc && (
+        <ThumbnailGrid
+          doc={doc}
+          comicFormat={comic.format}
+          currentPage={currentPage}
+          totalPages={total}
+          onSelectPage={(page) => {
+            goToPage(page)
+            setShowThumbnails(false)
+          }}
+          onClose={() => setShowThumbnails(false)}
         />
       )}
     </div>

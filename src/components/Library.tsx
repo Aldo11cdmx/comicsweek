@@ -1,10 +1,16 @@
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useComicStore } from '../store/useComicStore'
 import { ComicCard } from './ComicCard'
 import { SearchBar } from './SearchBar'
+import { ReadingStats } from './ReadingStats'
+import { useReadingStats } from '../hooks/useReadingStats'
+import { BarChart3 } from 'lucide-react'
 
 export function Library() {
   const { comics, filter, searchQuery, setFilter } = useComicStore()
+  const { stats, reset } = useReadingStats()
+  const [showStats, setShowStats] = useState(false)
 
   let filtered = comics
 
@@ -49,7 +55,16 @@ export function Library() {
           ))}
         </div>
 
-        <SearchBar />
+        <div className="flex items-center gap-2">
+          <SearchBar />
+          <button
+            onClick={() => setShowStats(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-cw-border/60 bg-cw-surface text-cw-text transition-colors hover:bg-cw-surface-2"
+            title="Estadísticas de lectura"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <AnimatePresence mode="popLayout">
@@ -74,6 +89,10 @@ export function Library() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showStats && (
+        <ReadingStats stats={stats} onClose={() => setShowStats(false)} onReset={reset} />
+      )}
     </section>
   )
 }
