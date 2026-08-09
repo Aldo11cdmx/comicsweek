@@ -9,6 +9,10 @@ const EDGE_THRESHOLD = 35
 const GUTTER_PERCENTILE = 18
 const ROW_TOLERANCE = 0.12
 
+function clamp(val: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, val))
+}
+
 interface Candidate {
   x: number
   y: number
@@ -148,6 +152,28 @@ function resolveReadingOrder(panels: Array<{ x: number; y: number; width: number
   }
 
   return orderedIndices
+}
+
+function sanitizePanel(p: { x: number; y: number; width: number; height: number; confidence: number; area: number; aspectRatio: number }): { x: number; y: number; width: number; height: number; confidence: number; area: number; aspectRatio: number; index?: number } | null {
+  if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.width) || !Number.isFinite(p.height) || !Number.isFinite(p.confidence) || !Number.isFinite(p.area) || !Number.isFinite(p.aspectRatio)) {
+    return null
+  }
+
+  let x = clamp(p.x, 0, 1)
+  let y = clamp(p.y, 0, 1)
+  let width = clamp(p.width, 0.0001, 1)
+  let height = clamp(p.height, 0.0001, 1)
+
+  if (x + width > 1) width = Math.max(0.0001, 1 - x)
+  if (y + height > 1) height = Math.max(0.0001, 1 - y)
+
+  const area = width * height
+  const aspectRatio = width / height
+
+  if (area < 0.001) return null
+  if (aspectRatio < 0.12 || aspectRatio > 12) return null
+
+  return { x, y, width, height, confidence: p.confidence, area, aspectRatio }
 }
 
 export async function detectPanels(
@@ -298,7 +324,7 @@ export async function detectPanels(
         'ltr'
       )
 
-      const orderedPanels = order.map(idx => {
+      let orderedPanels = order.map(idx => {
         const p = final[idx]
         return {
           x: p.x,
@@ -311,6 +337,35 @@ export async function detectPanels(
           index: order.indexOf(idx),
         }
       })
+
+      // TEMP DEBUG — remove after investigation
+      console.log('[CinematicDetector] pre-sanitize:', orderedPanels.map((p, i) => ({
+        index: i + 1,
+        x: p.x.toFixed(4),
+        y: p.y.toFixed(4),
+        width: p.width.toFixed(4),
+        height: p.height.toFixed(4),
+        confidence: p.confidence.toFixed(3),
+        aspectRatio: p.aspectRatio.toFixed(3),
+        area: p.area.toFixed(4),
+      })))
+
+      orderedPanels = orderedPanels
+        .map(p => sanitizePanel(p))
+        .filter((p): p is { x: number; y: number; width: number; height: number; confidence: number; area: number; aspectRatio: number; index?: number } => p !== null)
+        .map((p, i) => ({ ...p, index: i }))
+
+      // TEMP DEBUG — remove after investigation
+      console.log('[CinematicDetector] post-sanitize:', orderedPanels.map((p, i) => ({
+        index: i + 1,
+        x: p.x.toFixed(4),
+        y: p.y.toFixed(4),
+        width: p.width.toFixed(4),
+        height: p.height.toFixed(4),
+        confidence: p.confidence.toFixed(3),
+        aspectRatio: p.aspectRatio.toFixed(3),
+        area: p.area.toFixed(4),
+      })))
 
       resolve({
         status,

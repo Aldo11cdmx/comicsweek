@@ -551,6 +551,25 @@ export function Reader() {
     if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
       const focus = panelFocus || { tx: 0, ty: 0, scale: 1 }
 
+      // TEMP DEBUG — remove after investigation
+      console.log('[Reader] cinematic render', {
+        cinematicIndex: cinematicIndex + 1,
+        totalPanels: detectionResult.panels.length,
+        panel: {
+          x: currentPanel.x.toFixed(4),
+          y: currentPanel.y.toFixed(4),
+          width: currentPanel.width.toFixed(4),
+          height: currentPanel.height.toFixed(4),
+          confidence: currentPanel.confidence.toFixed(3),
+        },
+        focus: {
+          tx: focus.tx.toFixed(2),
+          ty: focus.ty.toFixed(2),
+          scale: focus.scale.toFixed(3),
+        },
+        imageDims,
+      })
+
       return (
         <motion.div
           key={`${currentPage}-${cinematicIndex}`}
