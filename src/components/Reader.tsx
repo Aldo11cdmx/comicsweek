@@ -5,6 +5,8 @@ import { useComicStore } from '../store/useComicStore'
 import { ComicDocument } from '../engine/ComicDocument'
 import { ReadingModes } from '../engine/ReadingModes'
 import { detectPanels } from '../engine/CinematicDetector'
+import { ViewerToolbar } from '../components/ViewerToolbar'
+import { useManualZoom, useViewerMode } from '../hooks'
 import { cn } from '../lib/utils'
 import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel } from '../types'
 
@@ -19,6 +21,7 @@ function clamp(val: number, min: number, max: number) {
 
 export function Reader() {
   const { currentComicId, currentReaderState, updateReaderState, closeReader, updateComic, getComicFile, comics } = useComicStore()
+  const { mode: viewerMode, toggleMode } = useViewerMode()
   const comic = comics.find(c => c.id === currentComicId)
   const [doc, setDoc] = useState<ComicDocument | null>(null)
   const [currentUrl, setCurrentUrl] = useState<string>('')
@@ -61,7 +64,18 @@ export function Reader() {
   const bookmarks = state.bookmarks
   const debugMode = state.debugMode
 
-  const currentPanel: ComicPanel | null = mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0
+  const cinematicActive = mode === 'cinematic' && viewerMode === 'panel'
+
+  const manualZoom = useManualZoom(containerRef, {
+    enabled: true,
+    onZoomChange: () => {
+      if (cinematicActive && !cinematicPaused) {
+        setCinematicPaused(true)
+      }
+    },
+  })
+
+  const currentPanel: ComicPanel | null = cinematicActive && detectionResult && detectionResult.panels.length > 0
     ? detectionResult.panels[cinematicIndex]
     : null
   const total = doc?.getPageCount() || comic?.pageCount || 0
@@ -148,6 +162,7 @@ export function Reader() {
       setDetectionResult(result)
       setCinematicIndex(0)
       setCinematicPaused(false)
+      manualZoom.resetZoom()
 
       if (result.status === 'SUCCESS' && result.panels.length > 0) {
         const panel = result.panels[0]
@@ -170,7 +185,7 @@ export function Reader() {
     } finally {
       setIsPanelsLoading(false)
     }
-  }, [currentComicId, computeFocusTarget, animateToFocus])
+  }, [currentComicId, computeFocusTarget, animateToFocus, manualZoom])
 
   const loadComic = useCallback(async () => {
     if (!comic || !currentComicId) return
@@ -181,6 +196,7 @@ export function Reader() {
     setCinematicIndex(0)
     setCinematicPaused(false)
     setPanelFocus(null)
+    manualZoom.resetZoom()
 
     try {
       const file = await getComicFile(currentComicId)
@@ -210,7 +226,7 @@ export function Reader() {
       setError('No pudimos abrir este cómic.')
       setIsLoading(false)
     }
-  }, [comic, currentComicId, currentPage, getComicFile, mode, loadPanels])
+  }, [comic, currentComicId, currentPage, getComicFile, mode, loadPanels, manualZoom])
 
   useEffect(() => {
     if (currentComicId && comic) {
@@ -236,6 +252,7 @@ export function Reader() {
           setCinematicIndex(0)
           setCinematicPaused(false)
           setPanelFocus(null)
+          manualZoom.resetZoom()
           setIsPanelsLoading(true)
           loadPanels(doc, currentPage)
         }
@@ -243,7 +260,7 @@ export function Reader() {
         setError('No se pudo cargar esta página.')
       })
     }
-  }, [currentPage, doc, mode, loadPanels])
+  }, [currentPage, doc, mode, loadPanels, manualZoom])
 
   useEffect(() => {
     if (!containerRef.current || mode !== 'cinematic') return
@@ -288,6 +305,7 @@ export function Reader() {
       const next = panels[cinematicIndex + 1]
       setCinematicIndex(prev => prev + 1)
       setCinematicPaused(false)
+      manualZoom.resetZoom()
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
         const target = computeFocusTarget(next, rect.width, rect.height)
@@ -296,7 +314,7 @@ export function Reader() {
     } else {
       goToPage(currentPage + 1)
     }
-  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus])
+  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus, manualZoom])
 
   const prevPanel = useCallback(() => {
     if (!detectionResult) return
@@ -304,6 +322,7 @@ export function Reader() {
       const prev = detectionResult.panels[cinematicIndex - 1]
       setCinematicIndex(prev => prev - 1)
       setCinematicPaused(false)
+      manualZoom.resetZoom()
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
         const target = computeFocusTarget(prev, rect.width, rect.height)
@@ -312,30 +331,33 @@ export function Reader() {
     } else {
       goToPage(currentPage - 1)
     }
-  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus])
+  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus, manualZoom])
 
   const nextPage = useCallback(() => {
     if (!doc) return
-    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+    if (cinematicActive && detectionResult && detectionResult.panels.length > 0) {
       nextPanel()
       return
     }
     const next = ReadingModes.nextPage(currentPage, doc.getPageCount(), mode, direction)
     goToPage(next)
-  }, [doc, currentPage, mode, direction, goToPage, detectionResult, nextPanel])
+  }, [doc, currentPage, mode, direction, goToPage, cinematicActive, detectionResult, nextPanel])
 
   const prevPage = useCallback(() => {
     if (!doc) return
-    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && cinematicIndex > 0) {
+    if (cinematicActive && detectionResult && detectionResult.panels.length > 0 && cinematicIndex > 0) {
       prevPanel()
       return
     }
     const prev = ReadingModes.prevPage(currentPage, doc.getPageCount(), mode, direction)
     goToPage(prev)
-  }, [doc, currentPage, mode, direction, goToPage, detectionResult, cinematicIndex, prevPanel])
+  }, [doc, currentPage, mode, direction, goToPage, cinematicActive, detectionResult, cinematicIndex, prevPanel])
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+      if (manualZoom.handleWheel(e)) {
+        return
+      }
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
         e.preventDefault()
         if (e.deltaX > 20) nextPanel()
@@ -351,11 +373,9 @@ export function Reader() {
     }
 
     if (e.ctrlKey || e.metaKey) {
-      e.preventDefault()
-      const delta = e.deltaY > 0 ? -0.1 : 0.1
-      updateReaderState({ zoom: clamp(zoom + delta, 0.5, 5) })
+      manualZoom.handleWheel(e)
     }
-  }, [mode, detectionResult, cinematicIndex, nextPanel, prevPanel, zoom, updateReaderState])
+  }, [mode, detectionResult, manualZoom, nextPanel, prevPanel])
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     switch (e.key) {
@@ -369,7 +389,7 @@ export function Reader() {
         break
       case ' ':
         e.preventDefault()
-        if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+        if (cinematicActive && detectionResult && detectionResult.panels.length > 0) {
           nextPanel()
         } else {
           nextPage()
@@ -387,16 +407,20 @@ export function Reader() {
       case 'f':
       case 'F':
         e.preventDefault()
-        updateReaderState({ isFullscreen: !isFullscreen })
+        if (e.ctrlKey || e.metaKey) {
+          updateReaderState({ isFullscreen: !isFullscreen })
+        } else {
+          toggleMode()
+        }
         break
       case '+':
       case '=':
         e.preventDefault()
-        updateReaderState({ zoom: Math.min(5, zoom + 0.2) })
+        manualZoom.zoomIn()
         break
       case '-':
         e.preventDefault()
-        updateReaderState({ zoom: Math.max(0.5, zoom - 0.2) })
+        manualZoom.zoomOut()
         break
       case 'b':
       case 'B':
@@ -414,7 +438,7 @@ export function Reader() {
         }
         break
     }
-  }, [nextPage, prevPage, isFullscreen, showSettings, showModeSelector, closeReader, updateReaderState, zoom, bookmarks, currentPage, mode, detectionResult, nextPanel, prevPanel, debugMode])
+  }, [prevPage, nextPage, isFullscreen, showSettings, showModeSelector, closeReader, updateReaderState, bookmarks, currentPage, mode, cinematicActive, detectionResult, nextPanel, prevPage, debugMode, manualZoom, toggleMode])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -439,19 +463,14 @@ export function Reader() {
     }, 3000)
   }, [])
 
-  const handleDoubleClick = useCallback(() => {
-    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
-      setCinematicPaused(p => !p)
-      if (!cinematicPaused && currentPanel) {
-        applyFocusToPanel(currentPanel)
-      }
-    } else {
-      updateReaderState({ zoom: zoom === 1 ? 2 : 1 })
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (manualZoom.handleDoubleClick(e)) {
+      return
     }
-  }, [mode, detectionResult, cinematicPaused, currentPanel, applyFocusToPanel, zoom, updateReaderState])
+  }, [manualZoom])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
+    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && !manualZoom.isManual) {
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
       const width = rect.width
@@ -478,7 +497,7 @@ export function Reader() {
     } else if (x > width * 0.7) {
       nextPage()
     }
-  }, [mode, detectionResult, cinematicIndex, prevPanel, nextPanel, cinematicPaused, currentPanel, applyFocusToPanel, prevPage, nextPage])
+  }, [mode, detectionResult, cinematicIndex, prevPanel, nextPanel, cinematicPaused, currentPanel, applyFocusToPanel, prevPage, nextPage, manualZoom.isManual])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -491,21 +510,6 @@ export function Reader() {
       console.error('Fullscreen error:', error)
     }
   }, [])
-
-  const toggleCinematicMode = useCallback(() => {
-    if (mode === 'cinematic') {
-      updateReaderState({ mode: 'page' })
-      setDetectionResult(null)
-      setPanelFocus(null)
-      setCinematicPaused(false)
-    } else {
-      updateReaderState({ mode: 'cinematic' })
-      if (doc) {
-        setIsPanelsLoading(true)
-        loadPanels(doc, currentPage)
-      }
-    }
-  }, [mode, updateReaderState, doc, currentPage, loadPanels])
 
   if (!comic) {
     return (
@@ -548,27 +552,23 @@ export function Reader() {
 
     if (!currentUrl) return null
 
-    if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
-      const focus = panelFocus || { tx: 0, ty: 0, scale: 1 }
+    if (cinematicActive && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
+      const focus: { tx: number; ty: number; scale: number } | null = panelFocus
+      const defaultFocus = { tx: 0, ty: 0, scale: 1 }
+      const activeFocus = focus || defaultFocus
 
-      // TEMP DEBUG — remove after investigation
-      console.log('[Reader] cinematic render', {
-        cinematicIndex: cinematicIndex + 1,
-        totalPanels: detectionResult.panels.length,
-        panel: {
-          x: currentPanel.x.toFixed(4),
-          y: currentPanel.y.toFixed(4),
-          width: currentPanel.width.toFixed(4),
-          height: currentPanel.height.toFixed(4),
-          confidence: currentPanel.confidence.toFixed(3),
-        },
-        focus: {
-          tx: focus.tx.toFixed(2),
-          ty: focus.ty.toFixed(2),
-          scale: focus.scale.toFixed(3),
-        },
-        imageDims,
-      })
+      const containerStyle: React.CSSProperties = {
+        transformOrigin: 'center center',
+        transition: isFocusAnimating && !manualZoom.isManual ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
+      }
+
+      if (manualZoom.isManual && manualZoom.lastManual) {
+        containerStyle.transform = `translate(${manualZoom.lastManual.tx}px, ${manualZoom.lastManual.ty}px) scale(${manualZoom.lastManual.scale})`
+      } else if (focus) {
+        containerStyle.transform = `translate(${activeFocus.tx}px, ${activeFocus.ty}px) scale(${activeFocus.scale})`
+      } else {
+        containerStyle.transform = 'none'
+      }
 
       return (
         <motion.div
@@ -578,11 +578,7 @@ export function Reader() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.25 }}
           className="relative h-full w-full"
-          style={{
-            transform: `translate(${focus.tx}px, ${focus.ty}px) scale(${focus.scale})`,
-            transition: isFocusAnimating ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
-            transformOrigin: 'center center',
-          }}
+          style={containerStyle}
         >
           <img
             src={currentUrl}
@@ -646,9 +642,9 @@ export function Reader() {
               )}
 
               <div className="absolute top-2 left-2 rounded bg-black/80 p-2 text-[10px] font-mono text-white space-y-1">
-                <div>scale: {focus.scale.toFixed(2)}</div>
-                <div>tx: {focus.tx.toFixed(1)}px</div>
-                <div>ty: {focus.ty.toFixed(1)}px</div>
+                <div>scale: {(manualZoom.isManual && manualZoom.lastManual ? manualZoom.lastManual.scale : activeFocus.scale).toFixed(3)}</div>
+                <div>tx: {(manualZoom.isManual && manualZoom.lastManual ? manualZoom.lastManual.tx : activeFocus.tx).toFixed(1)}px</div>
+                <div>ty: {(manualZoom.isManual && manualZoom.lastManual ? manualZoom.lastManual.ty : activeFocus.ty).toFixed(1)}px</div>
                 {currentPanel && (
                   <>
                     <div>panel: {(currentPanel.width * 100).toFixed(1)}% x {(currentPanel.height * 100).toFixed(1)}%</div>
@@ -664,6 +660,29 @@ export function Reader() {
               <div className="h-8 w-8 border-2 border-cw-accent border-t-transparent rounded-full" />
             </div>
           )}
+        </motion.div>
+      )
+    }
+
+    if (viewerMode === 'free' || !cinematicActive) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative"
+          style={{
+            transform: `scale(${zoom})`,
+            transition: 'transform 0.2s ease-out',
+            maxWidth: '100%',
+            maxHeight: '100%',
+          }}
+        >
+          <img
+            src={currentUrl}
+            alt={`Página ${currentPage + 1}`}
+            className="max-h-screen max-w-full object-contain"
+            draggable={false}
+          />
         </motion.div>
       )
     }
@@ -694,6 +713,9 @@ export function Reader() {
     <div
       ref={containerRef}
       onMouseMove={handleMouseMove}
+      onWheel={handleWheel}
+      onDoubleClick={handleDoubleClick}
+      onClick={handleClick}
       className={cn(
         'fixed inset-0 z-50 bg-cw-bg transition-colors overflow-hidden',
         isFullscreen && 'fullscreen'
@@ -722,9 +744,11 @@ export function Reader() {
                   {comic.title}
                 </span>
                 <span className="text-[11px] font-mono uppercase tracking-widest text-cw-text-muted">
-                  {mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0
-                    ? `Panel ${cinematicIndex + 1} / ${detectionResult.panels.length} · Page ${currentPage + 1} / ${total}`
-                    : `Issue · Page ${currentPage + 1} / ${total}`}
+                  {viewerMode === 'free'
+                    ? `Page ${currentPage + 1} / ${total}`
+                    : cinematicActive && detectionResult && detectionResult.panels.length > 0
+                      ? `Panel ${cinematicIndex + 1} / ${detectionResult.panels.length} · Page ${currentPage + 1} / ${total}`
+                      : `Issue · Page ${currentPage + 1} / ${total}`}
                 </span>
               </div>
             </div>
@@ -748,15 +772,19 @@ export function Reader() {
                 <ZoomIn className="h-4 w-4" />
               </button>
               <button
-                onClick={toggleCinematicMode}
+                onClick={toggleMode}
                 className={`rounded-full p-2 backdrop-blur-md transition-colors border ${
-                  mode === 'cinematic'
+                  viewerMode === 'panel'
                     ? 'bg-cw-accent/80 text-white border-cw-accent'
                     : 'bg-cw-surface/60 text-cw-text border-cw-border/50 hover:bg-cw-surface-2'
                 }`}
-                title="Focus Reading"
+                title={viewerMode === 'panel' ? 'Modo Viñeta' : 'Modo Libre'}
               >
-                <BookOpen className="h-4 w-4" />
+                {viewerMode === 'panel' ? (
+                  <BookOpen className="h-4 w-4" />
+                ) : (
+                  <Maximize className="h-4 w-4" />
+                )}
               </button>
               <button
                 onClick={() => updateReaderState({ showModeSelector: !showModeSelector })}
@@ -800,6 +828,7 @@ export function Reader() {
                       setDetectionResult(null)
                       setCinematicPaused(false)
                       setPanelFocus(null)
+                      manualZoom.resetZoom()
                       setIsPanelsLoading(true)
                       if (doc) {
                         loadPanels(doc, currentPage)
@@ -807,6 +836,7 @@ export function Reader() {
                     } else {
                       setDetectionResult(null)
                       setPanelFocus(null)
+                      manualZoom.resetZoom()
                     }
                   }}
                   className={`rounded-xl px-5 py-2.5 text-sm font-medium transition-colors ${
@@ -981,6 +1011,14 @@ export function Reader() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ViewerToolbar
+        zoom={manualZoom.isManual ? manualZoom.scale : zoom}
+        mode={viewerMode}
+        onZoomIn={viewerMode === 'panel' ? manualZoom.zoomIn : () => updateReaderState({ zoom: clamp(zoom + 0.2, 0.5, 5) })}
+        onZoomOut={viewerMode === 'panel' ? manualZoom.zoomOut : () => updateReaderState({ zoom: Math.max(0.5, zoom - 0.2) })}
+        onToggleMode={toggleMode}
+      />
 
       {mode === 'cinematic' && detectionResult && !showControls && (
         <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
