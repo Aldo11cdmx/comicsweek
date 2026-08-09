@@ -23,31 +23,30 @@ export function ContinueBanner({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: -60, opacity: 0 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute inset-x-0 top-16 z-30 mx-auto max-w-2xl px-6"
+        className="absolute inset-x-0 top-16 z-30 mx-auto max-w-2xl px-4 sm:px-6"
       >
-        <div className="rounded-2xl border border-cw-border/60 bg-cw-surface/90 px-5 py-3 shadow-2xl backdrop-blur-xl">
-          <div className="flex items-center justify-between gap-4">
+        <div className="rounded-2xl border border-cw-border/60 bg-cw-surface/90 px-4 py-3 shadow-2xl backdrop-blur-xl sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex flex-col gap-0.5">
               <span className="font-display text-sm font-bold text-cw-text">
                 ¿Continuar donde lo dejaste?
               </span>
               <span className="text-xs text-cw-text-muted">
-                Página {page} de {totalPages}
-                {panel > 0 ? ` · Panel ${panel}` : ''}
+                {panel > 0 ? `Página ${page} · Panel ${panel}` : `Página ${page} de ${totalPages}`}
               </span>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={onRestart}
-                className="flex items-center gap-1.5 rounded-xl bg-cw-surface-2 px-3 py-1.5 text-xs font-medium text-cw-text transition-colors hover:bg-cw-border"
+                className="flex items-center gap-1.5 rounded-xl bg-cw-surface-2 px-3 py-2 text-xs font-medium text-cw-text transition-colors hover:bg-cw-border sm:py-1.5"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Desde el principio
               </button>
               <button
                 onClick={onContinue}
-                className="flex items-center gap-1.5 rounded-xl bg-cw-accent px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cw-accent-hover"
+                className="flex items-center gap-1.5 rounded-xl bg-cw-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-cw-accent-hover sm:py-1.5"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 Continuar

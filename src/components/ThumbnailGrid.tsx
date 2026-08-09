@@ -123,7 +123,7 @@ export function ThumbnailGrid({ doc, comicFormat, currentPage, totalPages, onSel
 
           <div
             ref={containerRef}
-            className="grid grid-cols-3 gap-4 overflow-y-auto p-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6"
+            className="grid grid-cols-2 gap-3 overflow-y-auto p-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
             style={{ maxHeight: 'calc(90vh - 80px)' }}
           >
             {Array.from({ length: totalPages }, (_, i) => (

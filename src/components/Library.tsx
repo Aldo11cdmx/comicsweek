@@ -82,7 +82,7 @@ export function Library() {
             </p>
           </motion.div>
         ) : (
-          <motion.div layout className="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <motion.div layout className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {filtered.map((comic, i) => (
               <ComicCard key={comic.id} comic={comic} index={i} />
             ))}

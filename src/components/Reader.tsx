@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, BookOpen, Maximize, Minimize, Bookmark, Settings } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, BookOpen, Maximize, Minimize, Bookmark, Settings, FileText } from 'lucide-react'
 import { useComicStore } from '../store/useComicStore'
 import { ComicDocument } from '../engine/ComicDocument'
 import { ReadingModes } from '../engine/ReadingModes'
@@ -8,7 +8,8 @@ import { detectPanels } from '../engine/CinematicDetector'
 import { ViewerToolbar } from '../components/ViewerToolbar'
 import { ContinueBanner } from '../components/ContinueBanner'
 import { ThumbnailGrid } from '../components/ThumbnailGrid'
-import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress, useNightMode, useReadingStats } from '../hooks'
+import { ScrollMode } from '../components/ScrollMode'
+import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress, useNightMode, useReadingStats, usePinchZoom, useSwipeNavigation } from '../hooks'
 import { cn } from '../lib/utils'
 import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel, ReadingProgress } from '../types'
 
@@ -36,6 +37,8 @@ export function Reader() {
   const [doublePageMode, setDoublePageMode] = useState(false)
   const [showThumbnails, setShowThumbnails] = useState(false)
   const [leftPageUrl, setLeftPageUrl] = useState<string>('')
+  const [scrollMode, setScrollMode] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const comic = comics.find(c => c.id === currentComicId)
   const [doc, setDoc] = useState<ComicDocument | null>(null)
   const [currentUrl, setCurrentUrl] = useState<string>('')
@@ -90,6 +93,7 @@ export function Reader() {
   })
 
   const panelTransition = usePanelTransition()
+  const pinchZoom = usePinchZoom(containerRef)
 
   const currentPanel: ComicPanel | null = cinematicActive && detectionResult && detectionResult.panels.length > 0
     ? detectionResult.panels[cinematicIndex]
@@ -445,6 +449,34 @@ export function Reader() {
     goToPage(prev)
   }, [doc, currentPage, mode, direction, goToPage, cinematicActive, detectionResult, cinematicIndex, prevPanel])
 
+  const swipeNav = useSwipeNavigation(nextPanel, prevPage)
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (scrollMode) return
+    const touches = e.nativeEvent.touches
+    if (touches.length === 2) {
+      pinchZoom.handlers.onTouchStart(e.nativeEvent)
+    } else if (touches.length === 1) {
+      swipeNav.handlers.onTouchStart(e.nativeEvent)
+    }
+  }, [scrollMode, pinchZoom, swipeNav])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (scrollMode) return
+    const touches = e.nativeEvent.touches
+    if (touches.length === 2) {
+      pinchZoom.handlers.onTouchMove(e.nativeEvent)
+    } else if (touches.length === 1) {
+      swipeNav.handlers.onTouchMove(e.nativeEvent)
+    }
+  }, [scrollMode, pinchZoom, swipeNav])
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (scrollMode) return
+    pinchZoom.handlers.onTouchEnd(e.nativeEvent)
+    swipeNav.handlers.onTouchEnd()
+  }, [scrollMode, pinchZoom, swipeNav])
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0) {
       if (manualZoom.handleWheel(e)) {
@@ -733,6 +765,21 @@ export function Reader() {
       )
     }
 
+      if (scrollMode && doc) {
+        return (
+          <ScrollMode
+            doc={doc}
+            totalPages={total}
+            currentPage={currentPage}
+            onPageChange={(page) => updateReaderState({ currentPage: page })}
+            brightness={brightness}
+            contrast={contrast}
+            nightFilter={nightFilter}
+            zoom={zoom}
+          />
+        )
+      }
+
     if (!currentUrl) return null
 
     if (cinematicActive && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
@@ -1008,6 +1055,17 @@ export function Reader() {
                 )}
               </button>
               <button
+                onClick={() => setScrollMode(prev => !prev)}
+                className={`rounded-full p-2 backdrop-blur-md transition-colors border ${
+                  scrollMode
+                    ? 'bg-cw-accent/80 text-white border-cw-accent'
+                    : 'bg-cw-surface/60 text-cw-text border-cw-border/50 hover:bg-cw-surface-2'
+                }`}
+                title={scrollMode ? 'Modo Scroll' : 'Modo Página'}
+              >
+                <FileText className="h-4 w-4" />
+              </button>
+              <button
                 onClick={() => updateReaderState({ showModeSelector: !showModeSelector })}
                 className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
                 title="Modo de lectura"
@@ -1164,6 +1222,14 @@ export function Reader() {
 
       <div
         className="flex h-full w-full items-center justify-center"
+        style={{
+          ...(scrollMode ? {} : swipeNav.containerStyle),
+          ...(scrollMode ? {} : pinchZoom.containerStyle),
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onWheel={handleWheel}
@@ -1251,6 +1317,8 @@ export function Reader() {
         showExport={mode === 'cinematic' && !!currentPanel}
         doublePageMode={doublePageMode}
         onToggleDoublePage={() => setDoublePageMode(prev => !prev)}
+        mobileMenuOpen={mobileMenuOpen}
+        onToggleMobileMenu={() => setMobileMenuOpen(prev => !prev)}
       />
 
       {mode === 'cinematic' && detectionResult && !showControls && (

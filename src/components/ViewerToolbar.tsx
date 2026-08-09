@@ -1,7 +1,9 @@
 import { motion } from 'motion/react'
-import { ZoomIn, ZoomOut, BookOpen, Maximize, Sun, Moon, Share2, BookOpenCheck } from 'lucide-react'
+import { ZoomIn, ZoomOut, BookOpen, Maximize, Sun, Moon, Share2, BookOpenCheck, Settings } from 'lucide-react'
 import type { ViewerMode } from '../hooks/useManualZoom'
 import { ImageAdjustments } from '../components/ImageAdjustments'
+import { MobileMenu } from '../components/MobileMenu'
+import { useResponsive } from '../hooks/useResponsive'
 
 export function ViewerToolbar({
   zoom,
@@ -21,6 +23,8 @@ export function ViewerToolbar({
   showExport,
   doublePageMode,
   onToggleDoublePage,
+  mobileMenuOpen,
+  onToggleMobileMenu,
 }: {
   zoom: number
   mode: ViewerMode
@@ -39,9 +43,69 @@ export function ViewerToolbar({
   showExport?: boolean
   doublePageMode?: boolean
   onToggleDoublePage?: () => void
+  mobileMenuOpen: boolean
+  onToggleMobileMenu: () => void
 }) {
+  const { isMobile } = useResponsive()
   const nightTitle = nightMode === 'dark' ? 'Modo Oscuro' : nightMode === 'sepia' ? 'Modo Sepia' : 'Modo Normal'
   const NightIcon = nightMode === 'dark' ? Moon : nightMode === 'sepia' ? Sun : Sun
+
+  if (isMobile) {
+    return (
+      <>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 8 }}
+          transition={{ duration: 0.2 }}
+          className="absolute bottom-6 right-6 z-20 flex items-center gap-2"
+        >
+          <button
+            onClick={onToggleMode}
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${
+              mode === 'panel'
+                ? 'bg-cw-accent/20 text-cw-accent'
+                : 'bg-cw-surface/80 text-cw-text border border-cw-border/60'
+            }`}
+            title={mode === 'panel' ? 'Modo Viñeta' : 'Modo Libre'}
+          >
+            {mode === 'panel' ? <BookOpen className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+          </button>
+
+          <button
+            onClick={onToggleMobileMenu}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cw-surface/80 text-cw-text border border-cw-border/60"
+            title="Menú"
+          >
+            <Settings className="h-5 w-5" />
+          </button>
+        </motion.div>
+
+        {mobileMenuOpen && (
+          <MobileMenu
+            zoom={zoom}
+            mode={mode}
+            onZoomIn={onZoomIn}
+            onZoomOut={onZoomOut}
+            onToggleMode={onToggleMode}
+            brightness={brightness}
+            contrast={contrast}
+            onBrightnessChange={onBrightnessChange}
+            onContrastChange={onContrastChange}
+            onResetImageAdjustments={onResetImageAdjustments}
+            isImageDefault={isImageDefault}
+            nightMode={nightMode}
+            onCycleNightMode={onCycleNightMode}
+            onExportPanel={onExportPanel}
+            showExport={showExport}
+            doublePageMode={doublePageMode}
+            onToggleDoublePage={onToggleDoublePage}
+            onClose={onToggleMobileMenu}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <motion.div
