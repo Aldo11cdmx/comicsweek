@@ -1,3 +1,14 @@
+export interface ReadingProgress {
+  fileName: string
+  fileHash: string
+  currentPage: number
+  currentPanel: number
+  viewerMode: 'panel' | 'free'
+  brightness: number
+  contrast: number
+  lastOpened: number
+}
+
 export type ReadingMode = 'page' | 'vertical' | 'cinematic'
 export type ReadingDirection = 'ltr' | 'rtl'
 export type ComicStatus = 'new' | 'reading' | 'finished'

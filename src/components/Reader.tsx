@@ -6,9 +6,10 @@ import { ComicDocument } from '../engine/ComicDocument'
 import { ReadingModes } from '../engine/ReadingModes'
 import { detectPanels } from '../engine/CinematicDetector'
 import { ViewerToolbar } from '../components/ViewerToolbar'
-import { useManualZoom, useViewerMode } from '../hooks'
+import { ContinueBanner } from '../components/ContinueBanner'
+import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress } from '../hooks'
 import { cn } from '../lib/utils'
-import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel } from '../types'
+import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel, ReadingProgress } from '../types'
 
 const MIN_FOCUS_SCALE = 1
 const MAX_FOCUS_SCALE = 3.5
@@ -20,8 +21,13 @@ function clamp(val: number, min: number, max: number) {
 }
 
 export function Reader() {
-  const { currentComicId, currentReaderState, updateReaderState, closeReader, updateComic, getComicFile, comics } = useComicStore()
+  const { currentComicId, currentReaderState, updateReaderState, closeReader: storeCloseReader, updateComic, getComicFile, comics } = useComicStore()
   const { mode: viewerMode, toggleMode } = useViewerMode()
+  const { brightness, contrast, setBrightness, setContrast, reset: resetImageAdjustments, isDefault: isImageDefault } = useImageAdjustments()
+  const { getProgress, saveProgressData, clearProgress } = useReadingProgress()
+  const [pendingProgress, setPendingProgress] = useState<ReadingProgress | null>(null)
+  const [bannerVisible, setBannerVisible] = useState(false)
+  const bannerTimerRef = useRef<number | null>(null)
   const comic = comics.find(c => c.id === currentComicId)
   const [doc, setDoc] = useState<ComicDocument | null>(null)
   const [currentUrl, setCurrentUrl] = useState<string>('')
@@ -74,6 +80,8 @@ export function Reader() {
       }
     },
   })
+
+  const panelTransition = usePanelTransition()
 
   const currentPanel: ComicPanel | null = cinematicActive && detectionResult && detectionResult.panels.length > 0
     ? detectionResult.panels[cinematicIndex]
@@ -197,6 +205,7 @@ export function Reader() {
     setCinematicPaused(false)
     setPanelFocus(null)
     manualZoom.resetZoom()
+    setPendingProgress(null)
 
     try {
       const file = await getComicFile(currentComicId)
@@ -215,6 +224,24 @@ export function Reader() {
         setCurrentUrl(url)
       }
 
+      const savedProgress = getProgress(comic.title, comic.fileSize)
+      if (savedProgress && savedProgress.fileHash) {
+        const pageValid = savedProgress.currentPage >= 0 && savedProgress.currentPage < newDoc.getPageCount()
+        const panelValid = savedProgress.currentPanel >= 0
+        if (pageValid && panelValid) {
+          setPendingProgress(savedProgress)
+          setBannerVisible(true)
+          if (bannerTimerRef.current) {
+            clearTimeout(bannerTimerRef.current)
+          }
+          bannerTimerRef.current = window.setTimeout(() => {
+            applyPendingProgress(savedProgress)
+          }, 5000)
+          setIsLoading(false)
+          return
+        }
+      }
+
       if (mode === 'cinematic') {
         setIsPanelsLoading(true)
         loadPanels(newDoc, currentPage)
@@ -226,7 +253,43 @@ export function Reader() {
       setError('No pudimos abrir este cómic.')
       setIsLoading(false)
     }
-  }, [comic, currentComicId, currentPage, getComicFile, mode, loadPanels, manualZoom])
+  }, [comic, currentComicId, currentPage, getComicFile, mode, loadPanels, manualZoom, getProgress])
+
+  const applyPendingProgress = useCallback((progress: ReadingProgress) => {
+    updateReaderState({
+      currentPage: progress.currentPage,
+      mode: progress.viewerMode === 'free' ? 'page' : 'cinematic',
+    })
+    setBrightness(progress.brightness)
+    setContrast(progress.contrast)
+    setCinematicIndex(progress.currentPanel)
+    setPendingProgress(null)
+    setBannerVisible(false)
+    if (bannerTimerRef.current) {
+      clearTimeout(bannerTimerRef.current)
+      bannerTimerRef.current = null
+    }
+  }, [updateReaderState, setBrightness, setContrast])
+
+  const handleContinue = useCallback(() => {
+    if (pendingProgress) {
+      applyPendingProgress(pendingProgress)
+    }
+  }, [pendingProgress, applyPendingProgress])
+
+  const handleRestart = useCallback(() => {
+    if (comic && currentComicId) {
+      clearProgress(comic.title, comic.fileSize)
+    }
+    updateReaderState({ currentPage: 0 })
+    setCinematicIndex(0)
+    setPendingProgress(null)
+    setBannerVisible(false)
+    if (bannerTimerRef.current) {
+      clearTimeout(bannerTimerRef.current)
+      bannerTimerRef.current = null
+    }
+  }, [comic, currentComicId, clearProgress, updateReaderState])
 
   useEffect(() => {
     if (currentComicId && comic) {
@@ -239,6 +302,10 @@ export function Reader() {
       }
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect()
+      }
+      if (bannerTimerRef.current) {
+        clearTimeout(bannerTimerRef.current)
+        bannerTimerRef.current = null
       }
     }
   }, [currentComicId])
@@ -306,6 +373,7 @@ export function Reader() {
       setCinematicIndex(prev => prev + 1)
       setCinematicPaused(false)
       manualZoom.resetZoom()
+      panelTransition.notifyNavigation()
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
         const target = computeFocusTarget(next, rect.width, rect.height)
@@ -314,7 +382,7 @@ export function Reader() {
     } else {
       goToPage(currentPage + 1)
     }
-  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus, manualZoom])
+  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus, manualZoom, panelTransition])
 
   const prevPanel = useCallback(() => {
     if (!detectionResult) return
@@ -323,6 +391,7 @@ export function Reader() {
       setCinematicIndex(prev => prev - 1)
       setCinematicPaused(false)
       manualZoom.resetZoom()
+      panelTransition.notifyNavigation()
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect()
         const target = computeFocusTarget(prev, rect.width, rect.height)
@@ -331,7 +400,7 @@ export function Reader() {
     } else {
       goToPage(currentPage - 1)
     }
-  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus, manualZoom])
+  }, [detectionResult, cinematicIndex, currentPage, goToPage, computeFocusTarget, animateToFocus, manualZoom, panelTransition])
 
   const nextPage = useCallback(() => {
     if (!doc) return
@@ -401,7 +470,7 @@ export function Reader() {
         } else if (showSettings || showModeSelector) {
           updateReaderState({ showSettings: false, showModeSelector: false })
         } else {
-          closeReader()
+          closeReaderWithSave()
         }
         break
       case 'f':
@@ -438,7 +507,7 @@ export function Reader() {
         }
         break
     }
-  }, [prevPage, nextPage, isFullscreen, showSettings, showModeSelector, closeReader, updateReaderState, bookmarks, currentPage, mode, cinematicActive, detectionResult, nextPanel, prevPage, debugMode, manualZoom, toggleMode])
+  }, [prevPage, nextPage, isFullscreen, showSettings, showModeSelector, storeCloseReader, updateReaderState, bookmarks, currentPage, mode, cinematicActive, detectionResult, nextPanel, prevPage, debugMode, manualZoom, toggleMode])
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
@@ -499,6 +568,22 @@ export function Reader() {
     }
   }, [mode, detectionResult, cinematicIndex, prevPanel, nextPanel, cinematicPaused, currentPanel, applyFocusToPanel, prevPage, nextPage, manualZoom.isManual])
 
+  const closeReaderWithSave = useCallback(() => {
+    if (comic && currentComicId) {
+      saveProgressData({
+        fileName: comic.title,
+        fileHash: `${comic.title}:${comic.fileSize}`,
+        currentPage,
+        currentPanel: cinematicIndex,
+        viewerMode,
+        brightness,
+        contrast,
+      })
+    }
+    updateReaderState({ currentPage: 0 })
+    storeCloseReader()
+  }, [comic, currentComicId, currentPage, cinematicIndex, viewerMode, brightness, contrast, saveProgressData, updateReaderState, storeCloseReader])
+
   const toggleFullscreen = useCallback(async () => {
     try {
       if (!document.fullscreenElement) {
@@ -541,7 +626,7 @@ export function Reader() {
         >
           <p className="text-lg text-cw-text">{error}</p>
           <button
-            onClick={closeReader}
+            onClick={closeReaderWithSave}
             className="rounded-full bg-cw-accent px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-cw-accent-hover"
           >
             Volver a biblioteca
@@ -559,7 +644,9 @@ export function Reader() {
 
       const containerStyle: React.CSSProperties = {
         transformOrigin: 'center center',
-        transition: isFocusAnimating && !manualZoom.isManual ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
+        transition: isFocusAnimating && !manualZoom.isManual && panelTransition.duration > 0
+          ? `transform ${panelTransition.duration}ms ${panelTransition.easing}`
+          : 'none',
       }
 
       if (manualZoom.isManual && manualZoom.lastManual) {
@@ -584,6 +671,7 @@ export function Reader() {
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
             className="h-full w-full object-contain"
+            style={{ filter: `brightness(${brightness}) contrast(${contrast})` }}
             draggable={false}
           />
 
@@ -681,6 +769,7 @@ export function Reader() {
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
             className="max-h-screen max-w-full object-contain"
+            style={{ filter: `brightness(${brightness}) contrast(${contrast})` }}
             draggable={false}
           />
         </motion.div>
@@ -732,7 +821,7 @@ export function Reader() {
           >
             <div className="flex items-center gap-4">
               <button
-                onClick={closeReader}
+                onClick={closeReaderWithSave}
                 className="flex items-center justify-center rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
                 title="Cerrar lector (Esc)"
               >
@@ -1018,6 +1107,12 @@ export function Reader() {
         onZoomIn={viewerMode === 'panel' ? manualZoom.zoomIn : () => updateReaderState({ zoom: clamp(zoom + 0.2, 0.5, 5) })}
         onZoomOut={viewerMode === 'panel' ? manualZoom.zoomOut : () => updateReaderState({ zoom: Math.max(0.5, zoom - 0.2) })}
         onToggleMode={toggleMode}
+        brightness={brightness}
+        contrast={contrast}
+        onBrightnessChange={setBrightness}
+        onContrastChange={setContrast}
+        onResetImageAdjustments={resetImageAdjustments}
+        isImageDefault={isImageDefault}
       />
 
       {mode === 'cinematic' && detectionResult && !showControls && (
@@ -1032,6 +1127,16 @@ export function Reader() {
             </span>
           </div>
         </div>
+      )}
+
+      {bannerVisible && pendingProgress && (
+        <ContinueBanner
+          page={pendingProgress.currentPage + 1}
+          panel={pendingProgress.currentPanel + 1}
+          totalPages={total}
+          onContinue={handleContinue}
+          onRestart={handleRestart}
+        />
       )}
     </div>
   )

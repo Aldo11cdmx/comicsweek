@@ -1,8 +1,7 @@
 import { motion } from 'motion/react'
 import { ZoomIn, ZoomOut, BookOpen, Maximize } from 'lucide-react'
 import type { ViewerMode } from '../hooks/useManualZoom'
-
-const DEBUG_VIEWER_MODE = false
+import { ImageAdjustments } from '../components/ImageAdjustments'
 
 export function ViewerToolbar({
   zoom,
@@ -10,12 +9,24 @@ export function ViewerToolbar({
   onZoomIn,
   onZoomOut,
   onToggleMode,
+  brightness,
+  contrast,
+  onBrightnessChange,
+  onContrastChange,
+  onResetImageAdjustments,
+  isImageDefault,
 }: {
   zoom: number
   mode: ViewerMode
   onZoomIn: () => void
   onZoomOut: () => void
   onToggleMode: () => void
+  brightness: number
+  contrast: number
+  onBrightnessChange: (value: number) => void
+  onContrastChange: (value: number) => void
+  onResetImageAdjustments: () => void
+  isImageDefault: boolean
 }) {
   return (
     <motion.div
@@ -47,6 +58,15 @@ export function ViewerToolbar({
 
       <div className="mx-1 h-6 w-px bg-cw-border/60" />
 
+      <ImageAdjustments
+        brightness={brightness}
+        contrast={contrast}
+        onBrightnessChange={onBrightnessChange}
+        onContrastChange={onContrastChange}
+        onReset={onResetImageAdjustments}
+        isDefault={isImageDefault}
+      />
+
       <button
         onClick={onToggleMode}
         className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
@@ -62,15 +82,6 @@ export function ViewerToolbar({
           <Maximize className="h-4 w-4" />
         )}
       </button>
-
-      {DEBUG_VIEWER_MODE && (
-        <>
-          <div className="mx-1 h-6 w-px bg-cw-border/60" />
-          <span className="font-mono text-[10px] text-cw-text-dim">
-            {mode}
-          </span>
-        </>
-      )}
     </motion.div>
   )
 }

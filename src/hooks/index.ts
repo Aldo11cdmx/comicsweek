@@ -1,2 +1,5 @@
 export { useManualZoom, type ViewerMode } from './useManualZoom'
 export { useViewerMode } from './useViewerMode'
+export { useImageAdjustments } from './useImageAdjustments'
+export { usePanelTransition } from './usePanelTransition'
+export { useReadingProgress } from './useReadingProgress'
