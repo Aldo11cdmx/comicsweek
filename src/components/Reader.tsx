@@ -29,13 +29,26 @@ export function Reader() {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null)
   const [cinematicIndex, setCinematicIndex] = useState(0)
   const [cinematicPaused, setCinematicPaused] = useState(false)
-  const [panelFocus, setPanelFocus] = useState<{ x: number; y: number; scale: number } | null>(null)
+  const [panelFocus, setPanelFocus] = useState<{ tx: number; ty: number; scale: number } | null>(null)
   const [isFocusAnimating, setIsFocusAnimating] = useState(false)
+  const [imageDims, setImageDims] = useState({ w: 0, h: 0 })
   const containerRef = useRef<HTMLDivElement>(null)
   const controlsTimeoutRef = useRef<number | null>(null)
   const prevPageRef = useRef(0)
   const detectionCacheRef = useRef<Map<string, DetectionResult>>(new Map())
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const imageDimsRef = useRef({ w: 0, h: 0 })
+
+  useEffect(() => {
+    imageDimsRef.current = { w: imageDims.w, h: imageDims.h }
+  }, [imageDims])
+
+  useEffect(() => {
+    if (!currentUrl) return
+    const img = new Image()
+    img.onload = () => setImageDims({ w: img.naturalWidth, h: img.naturalHeight })
+    img.src = currentUrl
+  }, [currentUrl])
 
   const state = currentReaderState!
   const isFullscreen = state.isFullscreen
@@ -54,29 +67,54 @@ export function Reader() {
   const total = doc?.getPageCount() || comic?.pageCount || 0
 
   const computeFocusTarget = useCallback((panel: ComicPanel, containerWidth: number, containerHeight: number) => {
-    const padding = FOCUS_PADDING
-    const panelW = panel.width - padding * 2
-    const panelH = panel.height - padding * 2
-
-    if (panelW <= 0 || panelH <= 0) {
-      return { x: panel.x, y: panel.y, scale: 1 }
+    const { w: imgW, h: imgH } = imageDimsRef.current
+    if (!imgW || !imgH) {
+      return { tx: 0, ty: 0, scale: 1 }
     }
 
-    const scaleX = containerWidth / panelW
-    const scaleY = containerHeight / panelH
+    const padding = FOCUS_PADDING
+    const imageAspect = imgW / imgH
+    const containerAspect = containerWidth / containerHeight
+
+    let renderedW: number, renderedH: number, offsetX = 0, offsetY = 0
+
+    if (imageAspect > containerAspect) {
+      renderedW = containerWidth
+      renderedH = containerWidth / imageAspect
+      offsetY = (containerHeight - renderedH) / 2
+    } else {
+      renderedH = containerHeight
+      renderedW = containerHeight * imageAspect
+      offsetX = (containerWidth - renderedW) / 2
+    }
+
+    const panelRX = panel.x * renderedW
+    const panelRY = panel.y * renderedH
+    const panelRW = panel.width * renderedW
+    const panelRH = panel.height * renderedH
+
+    if (panelRW <= 0 || panelRH <= 0) {
+      return { tx: 0, ty: 0, scale: 1 }
+    }
+
+    const availW = containerWidth * (1 - 2 * padding)
+    const availH = containerHeight * (1 - 2 * padding)
+
+    const scaleX = availW / panelRW
+    const scaleY = availH / panelRH
     let targetScale = Math.min(scaleX, scaleY)
     targetScale = clamp(targetScale, MIN_FOCUS_SCALE, MAX_FOCUS_SCALE)
 
-    const centerX = panel.x + panel.width / 2
-    const centerY = panel.y + panel.height / 2
+    const panelCX = offsetX + panelRX + panelRW / 2
+    const panelCY = offsetY + panelRY + panelRH / 2
 
-    const targetX = clamp(centerX, 0, 1)
-    const targetY = clamp(centerY, 0, 1)
+    const tx = -targetScale * (panelCX - containerWidth / 2)
+    const ty = -targetScale * (panelCY - containerHeight / 2)
 
-    return { x: targetX, y: targetY, scale: targetScale }
+    return { tx, ty, scale: targetScale }
   }, [])
 
-  const animateToFocus = useCallback((target: { x: number; y: number; scale: number }) => {
+  const animateToFocus = useCallback((target: { tx: number; ty: number; scale: number }) => {
     setPanelFocus(target)
     setIsFocusAnimating(true)
     setTimeout(() => setIsFocusAnimating(false), 300)
@@ -511,8 +549,7 @@ export function Reader() {
     if (!currentUrl) return null
 
     if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
-      const panel = currentPanel
-      const focus = panelFocus || { x: panel.x + panel.width / 2, y: panel.y + panel.height / 2, scale: 1 }
+      const focus = panelFocus || { tx: 0, ty: 0, scale: 1 }
 
       return (
         <motion.div
@@ -523,9 +560,9 @@ export function Reader() {
           transition={{ duration: 0.25 }}
           className="relative h-full w-full"
           style={{
-            transform: `scale(${focus.scale})`,
+            transform: `translate(${focus.tx}px, ${focus.ty}px) scale(${focus.scale})`,
             transition: isFocusAnimating ? 'transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
-            transformOrigin: `${focus.x * 100}% ${focus.y * 100}%`,
+            transformOrigin: 'center center',
           }}
         >
           <img
@@ -537,26 +574,69 @@ export function Reader() {
 
           {debugMode && (
             <div className="absolute inset-0 pointer-events-none">
-              {detectionResult.panels.map((p, i) => (
+              {detectionResult.panels.map((p, i) => {
+                const panelScreenX = p.x * 100
+                const panelScreenY = p.y * 100
+                const panelScreenW = p.width * 100
+                const panelScreenH = p.height * 100
+                return (
+                  <div
+                    key={i}
+                    className="absolute border-2"
+                    style={{
+                      left: `${panelScreenX}%`,
+                      top: `${panelScreenY}%`,
+                      width: `${panelScreenW}%`,
+                      height: `${panelScreenH}%`,
+                      borderColor: i === cinematicIndex ? '#ff7b54' : 'rgba(255,255,255,0.3)',
+                      backgroundColor: i === cinematicIndex ? 'rgba(255,123,84,0.1)' : 'rgba(255,255,255,0.03)',
+                    }}
+                  >
+                    <span
+                      className="absolute -top-5 left-0 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-white"
+                    >
+                      {i + 1}
+                    </span>
+                    {debugMode && (
+                      <span
+                        className="absolute bottom-0 right-0 rounded bg-black/70 px-1 py-0.5 text-[9px] font-mono text-white"
+                      >
+                        {p.confidence.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+
+              {currentPanel && (
                 <div
-                  key={i}
-                  className="absolute border-2"
+                  className="absolute border-2 border-dashed border-cw-warm"
                   style={{
-                    left: `${p.x * 100}%`,
-                    top: `${p.y * 100}%`,
-                    width: `${p.width * 100}%`,
-                    height: `${p.height * 100}%`,
-                    borderColor: i === cinematicIndex ? '#ff7b54' : 'rgba(255,255,255,0.3)',
-                    backgroundColor: i === cinematicIndex ? 'rgba(255,123,84,0.1)' : 'rgba(255,255,255,0.03)',
+                    left: `${currentPanel.x * 100}%`,
+                    top: `${currentPanel.y * 100}%`,
+                    width: `${currentPanel.width * 100}%`,
+                    height: `${currentPanel.height * 100}%`,
                   }}
                 >
                   <span
-                    className="absolute -top-5 left-0 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-white"
+                    className="absolute -top-5 left-0 rounded bg-cw-warm/80 px-1.5 py-0.5 text-[10px] font-mono text-cw-bg"
                   >
-                    {i + 1}
+                    FOCUS
                   </span>
                 </div>
-              ))}
+              )}
+
+              <div className="absolute top-2 left-2 rounded bg-black/80 p-2 text-[10px] font-mono text-white space-y-1">
+                <div>scale: {focus.scale.toFixed(2)}</div>
+                <div>tx: {focus.tx.toFixed(1)}px</div>
+                <div>ty: {focus.ty.toFixed(1)}px</div>
+                {currentPanel && (
+                  <>
+                    <div>panel: {(currentPanel.width * 100).toFixed(1)}% x {(currentPanel.height * 100).toFixed(1)}%</div>
+                    <div>img: {imageDims.w} x {imageDims.h}</div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
@@ -596,7 +676,7 @@ export function Reader() {
       ref={containerRef}
       onMouseMove={handleMouseMove}
       className={cn(
-        'fixed inset-0 z-50 bg-cw-bg transition-colors',
+        'fixed inset-0 z-50 bg-cw-bg transition-colors overflow-hidden',
         isFullscreen && 'fullscreen'
       )}
     >
