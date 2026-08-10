@@ -1357,21 +1357,6 @@ export function Reader() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {bookmarks.includes(currentPage) && showControls && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.85 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-            className="absolute right-5 bottom-24 z-10 flex items-center gap-2 rounded-full bg-cw-warm/15 px-3.5 py-1.5 text-cw-warm backdrop-blur-md border border-cw-warm/20"
-          >
-            <Bookmark className="h-4 w-4 fill-current" />
-            <span className="text-xs font-medium">Marcado</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <ViewerToolbar
         zoom={manualZoom.isManual ? manualZoom.scale : zoom}
         mode={viewerMode}
