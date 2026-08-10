@@ -10,7 +10,6 @@ import { ContinueBanner } from '../components/ContinueBanner'
 import { ThumbnailGrid } from '../components/ThumbnailGrid'
 import { ScrollMode } from '../components/ScrollMode'
 import { PresentationControls } from '../components/PresentationControls'
-import { LazyImage } from '../components/LazyImage'
 import { usePresentationMode } from '../hooks/usePresentationMode'
 import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress, useNightMode, useReadingStats, usePinchZoom, useSwipeNavigation } from '../hooks'
 import { cn } from '../lib/utils'
@@ -832,11 +831,10 @@ export function Reader() {
           className="relative h-full w-full"
           style={containerStyle}
         >
-          <LazyImage
+          <img
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="h-full w-full"
-            priority
+            className="h-full w-full object-contain"
             style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
@@ -929,19 +927,17 @@ export function Reader() {
             transition: 'transform 0.2s ease-out',
           }}
         >
-          <LazyImage
+          <img
             src={leftPageUrl}
             alt={`Página ${currentPage}`}
-            className="max-h-screen max-w-[50vw]"
-            priority
+            className="max-h-screen max-w-[50vw] object-contain"
             style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
-          <LazyImage
+          <img
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="max-h-screen max-w-[50vw]"
-            priority
+            className="max-h-screen max-w-[50vw] object-contain"
             style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
@@ -962,11 +958,10 @@ export function Reader() {
             maxHeight: '100%',
           }}
         >
-          <LazyImage
+          <img
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="max-h-screen max-w-full"
-            priority
+            className="max-h-screen max-w-full object-contain"
             style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
@@ -986,11 +981,10 @@ export function Reader() {
           maxHeight: '100%',
         }}
       >
-        <LazyImage
+        <img
           src={currentUrl}
           alt={`Página ${currentPage + 1}`}
-          className="max-h-screen max-w-full"
-          priority
+          className="max-h-screen max-w-full object-contain"
           style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
           draggable={false}
         />
