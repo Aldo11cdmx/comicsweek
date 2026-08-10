@@ -7,13 +7,13 @@ import { ReadingStats } from './ReadingStats'
 import { useReadingStats } from '../hooks/useReadingStats'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
-import { BarChart3, Cloud, CloudOff, LogOut, RefreshCw, BarChart2, Filter, Link2 } from 'lucide-react'
+import { BarChart3, Cloud, CloudOff, LogOut, RefreshCw, BarChart2, Filter, Link2, Upload } from 'lucide-react'
 import { Logo } from './Logo'
 import { RadialMenu } from './RadialMenu'
 import { ImportUrlModal } from './ImportUrlModal'
 
 export function Library() {
-  const { comics, filter, searchQuery, loadComics } = useComicStore()
+  const { comics, filter, searchQuery, loadComics, setShowImportZone } = useComicStore()
   const { stats, reset } = useReadingStats()
   const { user, signOut } = useAuth()
   const [showStats, setShowStats] = useState(false)
@@ -65,20 +65,30 @@ export function Library() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => setShowImportUrl(true)}
+              className="flex items-center gap-2 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white/60 px-3 py-2 text-xs font-medium text-[#8E8E93] transition-colors hover:bg-white/80"
+              title="Importar desde URL"
+            >
+              <Link2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Importar</span>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowImportZone(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white/60 text-[#8E8E93] transition-colors hover:bg-white/80"
+              title="Subir archivo"
+            >
+              <Upload className="h-4 w-4" />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setShowStats(true)}
               className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white/60 text-[#8E8E93] transition-colors hover:bg-white/80"
               title="Estadísticas de lectura"
             >
               <BarChart3 className="h-4 w-4" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowImportUrl(true)}
-              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white/60 text-[#8E8E93] transition-colors hover:bg-white/80"
-              title="Importar desde URL"
-            >
-              <Link2 className="h-4 w-4" />
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.05 }}
