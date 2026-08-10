@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 
 interface LazyImageProps {
@@ -8,49 +8,43 @@ interface LazyImageProps {
   priority?: boolean
   aspectRatio?: number
   onClick?: () => void
+  style?: React.CSSProperties
+  draggable?: boolean
 }
 
-export function LazyImage({ src, alt, className = '', priority = false, aspectRatio = 2 / 3, onClick }: LazyImageProps) {
+export function LazyImage({ src, alt, className = '', priority = false, aspectRatio = 2 / 3, onClick, style, draggable }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false)
-  const [isInView, setIsInView] = useState(priority)
   const [hasError, setHasError] = useState(false)
-  const imgRef = useRef<HTMLDivElement>(null)
-  const observerRef = useRef<IntersectionObserver | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
-    if (priority) return
+    const img = imgRef.current
+    if (!img || !src) return
 
-    observerRef.current = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsInView(true)
-          observerRef.current?.disconnect()
-        }
-      },
-      { rootMargin: '200px' }
-    )
-
-    if (imgRef.current) {
-      observerRef.current.observe(imgRef.current)
+    if (img.complete && img.naturalWidth > 0) {
+      setIsLoaded(true)
+      return
     }
 
-    return () => observerRef.current?.disconnect()
-  }, [priority])
+    const handleLoad = () => setIsLoaded(true)
+    const handleError = () => {
+      setHasError(true)
+      setIsLoaded(true)
+    }
 
-  const handleLoad = useCallback(() => {
-    setIsLoaded(true)
-  }, [])
+    img.addEventListener('load', handleLoad)
+    img.addEventListener('error', handleError)
 
-  const handleError = useCallback(() => {
-    setHasError(true)
-    setIsLoaded(true)
-  }, [])
+    return () => {
+      img.removeEventListener('load', handleLoad)
+      img.removeEventListener('error', handleError)
+    }
+  }, [src])
 
   const paddingBottom = `${(1 / aspectRatio) * 100}%`
 
   return (
     <div
-      ref={imgRef}
       className={`relative overflow-hidden ${className}`}
       style={{ paddingBottom: !isLoaded ? paddingBottom : undefined }}
       onClick={onClick}
@@ -76,20 +70,19 @@ export function LazyImage({ src, alt, className = '', priority = false, aspectRa
           <span className="text-xs text-[#8E8E93]">Error al cargar</span>
         </div>
       ) : (
-        isInView && (
-          <motion.img
-            initial={{ opacity: 0, filter: 'blur(10px)' }}
-            animate={{ opacity: isLoaded ? 1 : 0, filter: isLoaded ? 'blur(0px)' : 'blur(10px)' }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            src={src}
-            alt={alt}
-            onLoad={handleLoad}
-            onError={handleError}
-            className="absolute inset-0 h-full w-full object-cover"
-            loading={priority ? 'eager' : 'lazy'}
-            decoding="async"
-          />
-        )
+        <motion.img
+          ref={imgRef}
+          initial={{ opacity: 0, filter: 'blur(10px)' }}
+          animate={{ opacity: isLoaded ? 1 : 0, filter: isLoaded ? 'blur(0px)' : 'blur(10px)' }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
+          src={src}
+          alt={alt}
+          className="absolute inset-0 h-full w-full object-contain"
+          style={style}
+          draggable={draggable}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+        />
       )}
     </div>
   )

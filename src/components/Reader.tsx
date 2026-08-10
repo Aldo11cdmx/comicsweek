@@ -837,6 +837,8 @@ export function Reader() {
             alt={`Página ${currentPage + 1}`}
             className="h-full w-full"
             priority
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
           />
 
           {debugMode && (
@@ -932,12 +934,16 @@ export function Reader() {
             alt={`Página ${currentPage}`}
             className="max-h-screen max-w-[50vw]"
             priority
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
           />
           <LazyImage
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
             className="max-h-screen max-w-[50vw]"
             priority
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
           />
         </motion.div>
       )
@@ -961,6 +967,8 @@ export function Reader() {
             alt={`Página ${currentPage + 1}`}
             className="max-h-screen max-w-full"
             priority
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
           />
         </motion.div>
       )
@@ -983,6 +991,8 @@ export function Reader() {
           alt={`Página ${currentPage + 1}`}
           className="max-h-screen max-w-full"
           priority
+          style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+          draggable={false}
         />
       </motion.div>
     )
