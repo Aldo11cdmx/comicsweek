@@ -19,6 +19,32 @@ export function ScrollMode({ doc, totalPages, currentPage, onPageChange, brightn
   const containerRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
 
+  const getMaxVisiblePages = () => {
+    if (typeof window === 'undefined') return 10
+    return window.innerWidth < 768 ? 6 : 10
+  }
+
+  const evictDistantPages = useCallback((centerPage: number) => {
+    const maxPages = getMaxVisiblePages()
+    const halfWindow = Math.floor(maxPages / 2)
+    const minPage = Math.max(0, centerPage - halfWindow - 1)
+    const maxPage = Math.min(totalPages - 1, centerPage + halfWindow + 1)
+
+    setPageUrls(prev => {
+      const next = new Map<number, string>()
+      prev.forEach((url, pageIndex) => {
+        if (pageIndex >= minPage && pageIndex <= maxPage) {
+          next.set(pageIndex, url)
+        }
+      })
+      return next
+    })
+  }, [totalPages])
+
+  useEffect(() => {
+    evictDistantPages(currentPage)
+  }, [currentPage, evictDistantPages])
+
   useEffect(() => {
     observerRef.current = new IntersectionObserver(
       (entries) => {

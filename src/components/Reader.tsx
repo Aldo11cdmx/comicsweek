@@ -390,6 +390,9 @@ export function Reader() {
     if (!doc || page < 0 || page >= doc.getPageCount()) return
     updateReaderState({ currentPage: page })
     saveProgress(page)
+    if (doc.pageCache && doc.pageCache.size > 0) {
+      doc.evictDistantPages(page)
+    }
   }, [doc, updateReaderState, saveProgress])
 
   const nextPanel = useCallback(() => {
