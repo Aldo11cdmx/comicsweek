@@ -113,29 +113,33 @@ export function ViewerToolbar({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 8 }}
       transition={{ duration: 0.2 }}
-      className="absolute bottom-6 right-6 z-20 flex items-center gap-2 rounded-2xl border border-cw-border/60 bg-cw-surface/80 px-3 py-2 shadow-2xl backdrop-blur-xl"
+      className="absolute bottom-6 right-6 z-20 flex items-center gap-2 rounded-[20px] border border-[rgba(0,0,0,0.06)] bg-white/80 px-3 py-2 shadow-sm backdrop-blur-xl"
     >
-      <button
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={onZoomOut}
-        className="flex h-8 w-8 items-center justify-center rounded-xl text-cw-text transition-colors hover:bg-cw-surface-2"
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8E8E93] transition-colors hover:bg-[#F0EDEA] hover:text-[#2D2D2D]"
         title="Zoom - (-)"
       >
         <ZoomOut className="h-4 w-4" />
-      </button>
+      </motion.button>
 
-      <span className="w-12 text-center font-mono text-xs text-cw-text-muted">
+      <span className="w-12 text-center font-mono text-xs text-[#8E8E93]">
         {Math.round(zoom * 100)}%
       </span>
 
-      <button
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={onZoomIn}
-        className="flex h-8 w-8 items-center justify-center rounded-xl text-cw-text transition-colors hover:bg-cw-surface-2"
+        className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8E8E93] transition-colors hover:bg-[#F0EDEA] hover:text-[#2D2D2D]"
         title="Zoom + (+)"
       >
         <ZoomIn className="h-4 w-4" />
-      </button>
+      </motion.button>
 
-      <div className="mx-1 h-6 w-px bg-cw-border/60" />
+      <div className="mx-1 h-6 w-px bg-[rgba(0,0,0,0.06)]" />
 
       <ImageAdjustments
         brightness={brightness}
@@ -146,44 +150,52 @@ export function ViewerToolbar({
         isDefault={isImageDefault}
       />
 
-      <button
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={onCycleNightMode}
-        className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
-          nightMode !== 'normal' ? 'bg-cw-accent/20 text-cw-accent' : 'text-cw-text hover:bg-cw-surface-2'
+        className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+          nightMode !== 'normal' ? 'bg-[#A8D8EA]/20 text-[#A8D8EA]' : 'text-[#8E8E93] hover:bg-[#F0EDEA] hover:text-[#2D2D2D]'
         }`}
         title={nightTitle}
       >
         <NightIcon className="h-4 w-4" />
-      </button>
+      </motion.button>
 
       {showExport && onExportPanel && (
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={onExportPanel}
-          className="flex h-8 w-8 items-center justify-center rounded-xl text-cw-text transition-colors hover:bg-cw-surface-2"
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-[#8E8E93] transition-colors hover:bg-[#F0EDEA] hover:text-[#2D2D2D]"
           title="Exportar panel (E)"
         >
           <Share2 className="h-4 w-4" />
-        </button>
+        </motion.button>
       )}
 
       {onToggleDoublePage && (
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={onToggleDoublePage}
-          className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
-            doublePageMode ? 'bg-cw-accent/20 text-cw-accent' : 'text-cw-text hover:bg-cw-surface-2'
+          className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
+            doublePageMode ? 'bg-[#FF9F87]/20 text-[#FF9F87]' : 'text-[#8E8E93] hover:bg-[#F0EDEA] hover:text-[#2D2D2D]'
           }`}
           title={doublePageMode ? 'Doble página (D)' : 'Página simple (D)'}
         >
           <BookOpenCheck className="h-4 w-4" />
-        </button>
+        </motion.button>
       )}
 
-      <button
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={onToggleMode}
-        className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors ${
+        className={`flex h-9 w-9 items-center justify-center rounded-xl transition-colors ${
           mode === 'panel'
-            ? 'bg-cw-accent/20 text-cw-accent'
-            : 'text-cw-text hover:bg-cw-surface-2'
+            ? 'bg-[#C3E8B7]/20 text-[#C3E8B7]'
+            : 'text-[#8E8E93] hover:bg-[#F0EDEA] hover:text-[#2D2D2D]'
         }`}
         title={mode === 'panel' ? 'Modo Viñeta' : 'Modo Libre'}
       >
@@ -192,7 +204,7 @@ export function ViewerToolbar({
         ) : (
           <Maximize className="h-4 w-4" />
         )}
-      </button>
+      </motion.button>
     </motion.div>
   )
 }

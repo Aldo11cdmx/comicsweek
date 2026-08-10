@@ -98,17 +98,17 @@ export function ScrollMode({ doc, totalPages, currentPage, onPageChange, brightn
   }, [])
 
   return (
-    <div ref={containerRef} className="h-full w-full overflow-y-auto bg-cw-bg">
+    <div ref={containerRef} className="h-full w-full overflow-y-auto bg-[#FAF9F7]">
       <div className="mx-auto max-w-3xl">
         {Array.from({ length: totalPages }, (_, i) => (
-          <div
+          <motion.div
             key={i}
             data-page={i}
             ref={(el) => {
               if (el) observerRef.current?.observe(el)
             }}
-            className={`flex items-center justify-center border-b border-cw-border/20 ${
-              i === currentPage ? 'bg-cw-accent/5' : ''
+            className={`flex items-center justify-center border-b border-[rgba(0,0,0,0.04)] transition-colors ${
+              i === currentPage ? 'bg-[#A8D8EA]/5' : ''
             }`}
           >
             {pageUrls.has(i) ? (
@@ -124,37 +124,42 @@ export function ScrollMode({ doc, totalPages, currentPage, onPageChange, brightn
               />
             ) : (
               <div className="flex h-64 w-full items-center justify-center">
-                <div className="h-8 w-8 border-2 border-cw-accent border-t-transparent rounded-full animate-spin" />
+                <div className="h-8 w-8 border-2 border-[#A8D8EA] border-t-transparent rounded-full animate-spin" />
               </div>
             )}
-          </div>
+          </motion.div>
         ))}
       </div>
 
       <div
-        className="fixed right-2 top-1/2 z-30 h-1/2 w-2 -translate-y-1/2 cursor-pointer overflow-hidden rounded-full bg-cw-surface-2"
+        className="fixed right-2 top-1/2 z-30 h-1/2 w-2 -translate-y-1/2 cursor-pointer overflow-hidden rounded-full bg-[#F0EDEA]"
         onClick={handleProgressClick}
       >
         <motion.div
-          className="w-full rounded-full bg-cw-accent"
+          className="w-full rounded-full"
+          style={{ background: 'linear-gradient(to top, #FF9F87, #A8D8EA)' }}
           animate={{ height: `${scrollProgress * 100}%` }}
           transition={{ duration: 0.1 }}
         />
       </div>
 
       <div className="fixed right-6 top-1/2 z-30 -translate-y-1/2 flex flex-col gap-2">
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => containerRef.current?.scrollBy({ top: -window.innerHeight, behavior: 'smooth' })}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-cw-surface/80 text-cw-text backdrop-blur-md border border-cw-border/50"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-[#8E8E93] backdrop-blur-md border border-[rgba(0,0,0,0.06)]"
         >
           <ChevronUp className="h-5 w-5" />
-        </button>
-        <button
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => containerRef.current?.scrollBy({ top: window.innerHeight, behavior: 'smooth' })}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-cw-surface/80 text-cw-text backdrop-blur-md border border-cw-border/50"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/80 text-[#8E8E93] backdrop-blur-md border border-[rgba(0,0,0,0.06)]"
         >
           <ChevronDown className="h-5 w-5" />
-        </button>
+        </motion.button>
       </div>
     </div>
   )

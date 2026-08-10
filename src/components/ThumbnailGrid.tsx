@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import { LazyImage } from './LazyImage'
 
 const THUMBNAIL_SCALE = 0.2
 
@@ -99,26 +100,29 @@ export function ThumbnailGrid({ doc, comicFormat, currentPage, totalPages, onSel
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-6"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-6"
         onClick={onClose}
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="relative max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-2xl bg-cw-surface border border-cw-border/60 shadow-2xl"
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="relative max-h-[90vh] w-full max-w-6xl overflow-hidden rounded-[20px] bg-white/90 backdrop-blur-xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center justify-between border-b border-cw-border/60 p-4">
-            <h3 className="font-display text-lg font-bold text-cw-text">
+          <div className="flex items-center justify-between border-b border-[rgba(0,0,0,0.06)] p-4">
+            <h3 className="font-system-ui text-lg font-medium text-[#2D2D2D]">
               Páginas
             </h3>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-cw-text-muted transition-colors hover:bg-cw-surface-2 hover:text-cw-text"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#8E8E93] transition-colors hover:bg-[#F0EDEA] hover:text-[#2D2D2D]"
             >
               ✕
-            </button>
+            </motion.button>
           </div>
 
           <div
@@ -127,39 +131,42 @@ export function ThumbnailGrid({ doc, comicFormat, currentPage, totalPages, onSel
             style={{ maxHeight: 'calc(90vh - 80px)' }}
           >
             {Array.from({ length: totalPages }, (_, i) => (
-              <div
+              <motion.div
                 key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.02, duration: 0.3 }}
                 ref={handleRef}
                 data-page={i}
                 onClick={() => onSelectPage(i)}
-                className={`group relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all ${
+                className={`group relative cursor-pointer overflow-hidden rounded-2xl border-2 transition-all ${
                   i === currentPage
-                    ? 'border-cw-accent shadow-lg shadow-cw-accent/20'
-                    : 'border-cw-border/40 hover:border-cw-border'
+                    ? 'border-[#A8D8EA] shadow-[0_0_0_3px_rgba(168,216,234,0.2)]'
+                    : 'border-[rgba(0,0,0,0.06)] hover:border-[rgba(0,0,0,0.12)]'
                 }`}
               >
-                <div className="aspect-[2/3] overflow-hidden bg-cw-surface-2">
+                <div className="aspect-[2/3] overflow-hidden bg-[#F0EDEA]">
                   {thumbnails.has(i) ? (
-                    <img
-                      src={thumbnails.get(i)}
+                    <LazyImage
+                      src={thumbnails.get(i)!}
                       alt={`Página ${i + 1}`}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
+                      className="h-full w-full"
+                      aspectRatio={2 / 3}
                     />
                   ) : loading.has(i) ? (
                     <div className="flex h-full w-full items-center justify-center">
-                      <div className="h-6 w-6 border-2 border-cw-accent border-t-transparent rounded-full animate-spin" />
+                      <div className="h-6 w-6 border-2 border-[#A8D8EA] border-t-transparent rounded-full animate-spin" />
                     </div>
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-xs text-cw-text-muted">
+                    <div className="flex h-full w-full items-center justify-center text-xs text-[#8E8E93]">
                       {i + 1}
                     </div>
                   )}
                 </div>
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   <span className="text-xs font-medium text-white">{i + 1}</span>
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </motion.div>

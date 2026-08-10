@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, BookOpen, Maximize, Minimize, Bookmark, Settings, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut, BookOpen, Maximize, Bookmark, FileText } from 'lucide-react'
 import { useComicStore } from '../store/useComicStore'
 import { ComicDocument } from '../engine/ComicDocument'
 import { ReadingModes } from '../engine/ReadingModes'
@@ -9,6 +9,9 @@ import { ViewerToolbar } from '../components/ViewerToolbar'
 import { ContinueBanner } from '../components/ContinueBanner'
 import { ThumbnailGrid } from '../components/ThumbnailGrid'
 import { ScrollMode } from '../components/ScrollMode'
+import { PresentationControls } from '../components/PresentationControls'
+import { LazyImage } from '../components/LazyImage'
+import { usePresentationMode } from '../hooks/usePresentationMode'
 import { useManualZoom, useViewerMode, useImageAdjustments, usePanelTransition, useReadingProgress, useNightMode, useReadingStats, usePinchZoom, useSwipeNavigation } from '../hooks'
 import { cn } from '../lib/utils'
 import type { ReadingMode, ReadingDirection, ComicStatus, DetectionResult, ComicPanel, ReadingProgress } from '../types'
@@ -58,6 +61,13 @@ export function Reader() {
   const detectionCacheRef = useRef<Map<string, DetectionResult>>(new Map())
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const imageDimsRef = useRef({ w: 0, h: 0 })
+  const {
+    enabled: presentationMode,
+    isFullscreen: presentationFullscreen,
+    containerRef: presentationContainerRef,
+    toggle: togglePresentation,
+    resetHideTimer: resetPresentationHideTimer,
+  } = usePresentationMode()
 
   useEffect(() => {
     imageDimsRef.current = { w: imageDims.w, h: imageDims.h }
@@ -670,6 +680,11 @@ export function Reader() {
   }, [manualZoom])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
+    if (presentationMode) {
+      resetPresentationHideTimer()
+      return
+    }
+
     if (mode === 'cinematic' && detectionResult && detectionResult.panels.length > 0 && !manualZoom.isManual) {
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
@@ -697,7 +712,7 @@ export function Reader() {
     } else if (x > width * 0.7) {
       nextPage()
     }
-  }, [mode, detectionResult, cinematicIndex, prevPanel, nextPanel, cinematicPaused, currentPanel, applyFocusToPanel, prevPage, nextPage, manualZoom.isManual])
+  }, [presentationMode, resetPresentationHideTimer, mode, detectionResult, cinematicIndex, prevPanel, nextPanel, cinematicPaused, currentPanel, applyFocusToPanel, prevPage, nextPage, manualZoom.isManual])
 
   const closeReaderWithSave = useCallback(() => {
     if (comic && currentComicId) {
@@ -721,18 +736,6 @@ export function Reader() {
     }
     storeCloseReader()
   }, [comic, currentComicId, currentPage, cinematicIndex, viewerMode, brightness, contrast, saveProgressData, updateReaderState, storeCloseReader, recordSession, doc])
-
-  const toggleFullscreen = useCallback(async () => {
-    try {
-      if (!document.fullscreenElement) {
-        await containerRef.current?.requestFullscreen()
-      } else {
-        await document.exitFullscreen()
-      }
-    } catch (error) {
-      console.error('Fullscreen error:', error)
-    }
-  }, [])
 
   if (!comic) {
     return (
@@ -829,12 +832,11 @@ export function Reader() {
           className="relative h-full w-full"
           style={containerStyle}
         >
-          <img
+          <LazyImage
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="h-full w-full object-contain"
-            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
-            draggable={false}
+            className="h-full w-full"
+            priority
           />
 
           {debugMode && (
@@ -925,19 +927,17 @@ export function Reader() {
             transition: 'transform 0.2s ease-out',
           }}
         >
-          <img
+          <LazyImage
             src={leftPageUrl}
             alt={`Página ${currentPage}`}
-            className="max-h-screen max-w-[50vw] object-contain"
-            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
-            draggable={false}
+            className="max-h-screen max-w-[50vw]"
+            priority
           />
-          <img
+          <LazyImage
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="max-h-screen max-w-[50vw] object-contain"
-            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
-            draggable={false}
+            className="max-h-screen max-w-[50vw]"
+            priority
           />
         </motion.div>
       )
@@ -956,12 +956,11 @@ export function Reader() {
             maxHeight: '100%',
           }}
         >
-          <img
+          <LazyImage
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="max-h-screen max-w-full object-contain"
-            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
-            draggable={false}
+            className="max-h-screen max-w-full"
+            priority
           />
         </motion.div>
       )
@@ -979,12 +978,11 @@ export function Reader() {
           maxHeight: '100%',
         }}
       >
-        <img
+        <LazyImage
           src={currentUrl}
           alt={`Página ${currentPage + 1}`}
-          className="max-h-screen max-w-full object-contain"
-          draggable={false}
-          style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+          className="max-h-screen max-w-full"
+          priority
         />
       </motion.div>
     )
@@ -992,41 +990,47 @@ export function Reader() {
 
   return (
     <div
-      ref={containerRef}
+      ref={(el) => {
+        containerRef.current = el
+        presentationContainerRef.current = el
+      }}
       onMouseMove={handleMouseMove}
       onWheel={handleWheel}
       onDoubleClick={handleDoubleClick}
       onClick={handleClick}
       className={cn(
         'fixed inset-0 z-50 bg-cw-bg transition-colors overflow-hidden',
-        isFullscreen && 'fullscreen'
+        isFullscreen && 'fullscreen',
+        presentationMode && 'presentation-mode'
       )}
     >
       <AnimatePresence>
         {showControls && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-            className="absolute inset-x-0 top-0 z-10 flex items-start justify-between bg-gradient-to-b from-cw-bg/80 via-cw-bg/40 to-transparent p-5"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="absolute inset-x-0 top-0 z-10 flex items-start justify-between bg-gradient-to-b from-black/20 via-black/10 to-transparent p-4 backdrop-blur-sm"
           >
-            <div className="flex items-center gap-4">
-              <button
+            <div className="flex items-center gap-3">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={closeReaderWithSave}
-                className="flex items-center justify-center rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors hover:bg-white/30"
                 title="Cerrar lector (Esc)"
               >
-                <X className="h-5 w-5" />
-              </button>
+                <X className="h-4 w-4" />
+              </motion.button>
 
               <div className="flex flex-col gap-0.5">
-                <span className="font-display text-sm font-bold text-cw-text">
+                <span className="font-system-ui text-sm font-medium text-white/90">
                   {comic.title}
                 </span>
                 <button
                   onClick={() => setShowThumbnails(true)}
-                  className="text-left text-[11px] font-mono uppercase tracking-widest text-cw-text-muted transition-colors hover:text-cw-accent"
+                  className="text-left text-[11px] font-mono uppercase tracking-widest text-white/60 transition-colors hover:text-white"
                   title="Ver miniaturas (G)"
                 >
                   {viewerMode === 'free'
@@ -1038,66 +1042,87 @@ export function Reader() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
-              <button
+            <div className="flex items-center gap-2">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => updateReaderState({ zoom: Math.max(0.5, zoom - 0.2) })}
-                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors hover:bg-white/30"
                 title="Zoom - (-)"
               >
-                <ZoomOut className="h-4 w-4" />
-              </button>
-              <span className="font-mono text-[11px] text-cw-text-muted w-14 text-center">
+                <ZoomOut className="h-3.5 w-3.5" />
+              </motion.button>
+              <span className="w-10 text-center font-mono text-[11px] text-white/80">
                 {Math.round(zoom * 100)}%
               </span>
-              <button
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => updateReaderState({ zoom: Math.min(5, zoom + 0.2) })}
-                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur-md transition-colors hover:bg-white/30"
                 title="Zoom + (+)"
               >
-                <ZoomIn className="h-4 w-4" />
-              </button>
-              <button
+                <ZoomIn className="h-3.5 w-3.5" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={toggleMode}
-                className={`rounded-full p-2 backdrop-blur-md transition-colors border ${
+                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-colors ${
                   viewerMode === 'panel'
-                    ? 'bg-cw-accent/80 text-white border-cw-accent'
-                    : 'bg-cw-surface/60 text-cw-text border-cw-border/50 hover:bg-cw-surface-2'
+                    ? 'bg-white/30 text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
                 }`}
                 title={viewerMode === 'panel' ? 'Modo Viñeta' : 'Modo Libre'}
               >
                 {viewerMode === 'panel' ? (
-                  <BookOpen className="h-4 w-4" />
+                  <BookOpen className="h-3.5 w-3.5" />
                 ) : (
-                  <Maximize className="h-4 w-4" />
+                  <Maximize className="h-3.5 w-3.5" />
                 )}
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setScrollMode(prev => !prev)}
-                className={`rounded-full p-2 backdrop-blur-md transition-colors border ${
+                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-colors ${
                   scrollMode
-                    ? 'bg-cw-accent/80 text-white border-cw-accent'
-                    : 'bg-cw-surface/60 text-cw-text border-cw-border/50 hover:bg-cw-surface-2'
+                    ? 'bg-white/30 text-white'
+                    : 'bg-white/20 text-white hover:bg-white/30'
                 }`}
                 title={scrollMode ? 'Modo Scroll' : 'Modo Página'}
               >
-                <FileText className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => updateReaderState({ showModeSelector: !showModeSelector })}
-                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
-                title="Modo de lectura"
+                <FileText className="h-3.5 w-3.5" />
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={togglePresentation}
+                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition-colors ${
+                  presentationMode
+                    ? 'bg-[#C3E8B7]/30 text-[#C3E8B7]'
+                    : 'bg-white/20 text-white hover:bg-white/30'
+                }`}
+                title="Modo presentación"
               >
-                <Settings className="h-4 w-4" />
-              </button>
-              <button
-                onClick={toggleFullscreen}
-                className="rounded-full bg-cw-surface/60 p-2 text-cw-text backdrop-blur-md transition-colors hover:bg-cw-surface-2 border border-cw-border/50"
-                title="Pantalla completa (F)"
-              >
-                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
-              </button>
+                <BookOpen className="h-3.5 w-3.5" />
+              </motion.button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {presentationMode && (
+          <PresentationControls
+            currentPage={currentPage}
+            totalPages={total}
+            onPrev={prevPage}
+            onNext={nextPage}
+            onClose={togglePresentation}
+            onToggleFullscreen={togglePresentation}
+            isFullscreen={presentationFullscreen}
+          />
         )}
       </AnimatePresence>
 

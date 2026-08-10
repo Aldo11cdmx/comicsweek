@@ -25,35 +25,47 @@ export function ContinueBanner({
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
         className="absolute inset-x-0 top-16 z-30 mx-auto max-w-2xl px-4 sm:px-6"
       >
-        <div className="rounded-2xl border border-cw-border/60 bg-cw-surface/90 px-4 py-3 shadow-2xl backdrop-blur-xl sm:px-5">
+        <motion.div
+          initial={{ scale: 0.95 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.1, duration: 0.2 }}
+          className="rounded-[20px] border border-[rgba(0,0,0,0.06)] bg-white/90 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-5"
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
             <div className="flex flex-col gap-0.5">
-              <span className="font-display text-sm font-bold text-cw-text">
+              <span className="font-system-ui text-sm font-medium text-[#2D2D2D]">
                 ¿Continuar donde lo dejaste?
               </span>
-              <span className="text-xs text-cw-text-muted">
+              <span className="text-xs text-[#8E8E93]">
                 {panel > 0 ? `Página ${page} · Panel ${panel}` : `Página ${page} de ${totalPages}`}
               </span>
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={onRestart}
-                className="flex items-center gap-1.5 rounded-xl bg-cw-surface-2 px-3 py-2 text-xs font-medium text-cw-text transition-colors hover:bg-cw-border sm:py-1.5"
+                className="flex items-center gap-1.5 rounded-xl bg-[#F0EDEA] px-3 py-2 text-xs font-medium text-[#8E8E93] transition-colors hover:bg-[#E5E2DE] hover:text-[#2D2D2D] sm:py-1.5"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Desde el principio
-              </button>
-              <button
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 onClick={onContinue}
-                className="flex items-center gap-1.5 rounded-xl bg-cw-accent px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-cw-accent-hover sm:py-1.5"
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-white shadow-sm sm:py-1.5"
+                style={{
+                  background: 'linear-gradient(135deg, #FF9F87 0%, #A8D8EA 100%)',
+                }}
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
                 Continuar
-              </button>
+              </motion.button>
             </div>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
     </AnimatePresence>
   )

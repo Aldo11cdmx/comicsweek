@@ -8,6 +8,8 @@ import { Collections } from './components/Collections'
 import { Reader } from './components/Reader'
 import { BookmarkToast } from './components/BookmarkToast'
 import { LoginPage } from './components/LoginPage'
+import { LandingPage } from './components/LandingPage'
+import { SplashScreen } from './components/SplashScreen'
 import { useComicStore } from './store/useComicStore'
 import { useAuth } from './contexts/AuthContext'
 
@@ -17,6 +19,8 @@ function App() {
   const [offlineMode, setOfflineMode] = useState(() => {
     return localStorage.getItem('comicsweek-offline-mode') === 'true'
   })
+  const [showSplash, setShowSplash] = useState(true)
+  const [showLanding, setShowLanding] = useState(true)
 
   useEffect(() => {
     loadComics()
@@ -26,11 +30,26 @@ function App() {
     localStorage.setItem('comicsweek-offline-mode', String(offlineMode))
   }, [offlineMode])
 
+  useEffect(() => {
+    if (user) {
+      setShowLanding(false)
+    }
+  }, [user])
+
   const showReader = view === 'reader' && currentComicId
   const showApp = !loading && (user || offlineMode)
+  const showLandingPage = showApp && showLanding && !user
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setShowSplash(false)} />
+  }
 
   if (!showApp) {
     return <LoginPage onOffline={() => setOfflineMode(true)} />
+  }
+
+  if (showLandingPage) {
+    return <LandingPage onStart={() => setShowLanding(false)} />
   }
 
   return (
