@@ -1,4 +1,6 @@
 import { useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 export interface ReadingProgress {
   fileName: string
@@ -81,34 +83,79 @@ function pruneOldEntries() {
 }
 
 export function useReadingProgress() {
+  const { user } = useAuth()
   const getKey = useCallback((fileName: string, fileSize: number) => {
     return `${STORAGE_KEY_PREFIX}${hashFile(fileName, fileSize)}`
   }, [])
 
-  const getProgress = useCallback((fileName: string, fileSize: number): ReadingProgress | null => {
+  const getProgress = useCallback(async (fileName: string, fileSize: number): Promise<ReadingProgress | null> => {
+    if (user) {
+      const fileHash = hashFile(fileName, fileSize)
+      const { data, error } = await supabase
+        .from('reading_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('file_hash', fileHash)
+        .single()
+
+      if (error || !data) return null
+
+      return {
+        fileName: data.file_name,
+        fileHash: data.file_hash,
+        currentPage: data.current_page,
+        currentPanel: data.current_panel,
+        viewerMode: data.viewer_mode,
+        brightness: data.brightness,
+        contrast: data.contrast,
+        lastOpened: new Date(data.last_opened).getTime(),
+      }
+    }
+
     const key = getKey(fileName, fileSize)
     return loadProgress(key)
-  }, [getKey])
+  }, [user, getKey])
 
-  const saveProgressData = useCallback((data: Omit<ReadingProgress, 'lastOpened'>) => {
-    const key = `${STORAGE_KEY_PREFIX}${data.fileHash}`
+  const saveProgressData = useCallback(async (data: Omit<ReadingProgress, 'lastOpened'>) => {
     const progress: ReadingProgress = {
       ...data,
       lastOpened: Date.now(),
     }
-    saveProgress(key, progress)
-    pruneOldEntries()
-  }, [])
 
-  const clearProgress = useCallback((fileName: string, fileSize: number) => {
-    const key = getKey(fileName, fileSize)
-    if (typeof window === 'undefined') return
-    try {
-      localStorage.removeItem(key)
-    } catch {
-      // ignore
+    if (user) {
+      await supabase.from('reading_progress').upsert({
+        user_id: user.id,
+        file_hash: data.fileHash,
+        file_name: data.fileName,
+        current_page: data.currentPage,
+        current_panel: data.currentPanel,
+        viewer_mode: data.viewerMode,
+        brightness: data.brightness,
+        contrast: data.contrast,
+        last_opened: new Date().toISOString(),
+      })
+    } else {
+      const key = `${STORAGE_KEY_PREFIX}${data.fileHash}`
+      saveProgress(key, progress)
+      pruneOldEntries()
     }
-  }, [getKey])
+  }, [user])
+
+  const clearProgress = useCallback(async (fileName: string, fileSize: number) => {
+    const fileHash = hashFile(fileName, fileSize)
+
+    if (user) {
+      await supabase.from('reading_progress').delete().eq('user_id', user.id).eq('file_hash', fileHash)
+    } else {
+      const key = getKey(fileName, fileSize)
+      if (typeof window === 'undefined') return
+      try {
+        localStorage.removeItem(key)
+      } catch {
+        // ignore
+      }
+    }
+  }, [user, getKey])
 
   return {
     getProgress,

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Comic, ReaderState, ComicStatus, Theme, View, ImportResult } from '../types'
 import { getAllComics, saveComic, deleteComic as dbDeleteComic, getFile, saveFile } from '../lib/idb'
+import { supabase } from '../lib/supabase'
 
 interface ComicStore {
   comics: Comic[]
@@ -41,6 +42,63 @@ const defaultReaderState: ReaderState = {
   debugMode: false,
 }
 
+async function getSupabaseUser() {
+  const { data: { user } } = await supabase.auth.getUser()
+  return user
+}
+
+async function syncComicToSupabase(comic: Comic) {
+  const user = await getSupabaseUser()
+  if (!user) return
+
+  await supabase.from('comics').upsert({
+    id: comic.id,
+    user_id: user.id,
+    title: comic.title,
+    format: comic.format,
+    cover: comic.cover,
+    page_count: comic.pageCount,
+    progress: comic.progress,
+    status: comic.status,
+    imported_at: new Date(comic.importedAt).toISOString(),
+    last_read_at: comic.lastReadAt ? new Date(comic.lastReadAt).toISOString() : null,
+    file_size: comic.fileSize,
+  })
+}
+
+async function deleteComicFromSupabase(id: string) {
+  const user = await getSupabaseUser()
+  if (!user) return
+
+  await supabase.from('comics').delete().eq('id', id).eq('user_id', user.id)
+}
+
+async function loadComicsFromSupabase(): Promise<Comic[]> {
+  const user = await getSupabaseUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('comics')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('imported_at', { ascending: false })
+
+  if (error || !data) return []
+
+  return data.map((row: any) => ({
+    id: row.id,
+    title: row.title,
+    format: row.format,
+    cover: row.cover,
+    pageCount: row.page_count,
+    progress: row.progress,
+    status: row.status,
+    importedAt: new Date(row.imported_at).getTime(),
+    lastReadAt: row.last_read_at ? new Date(row.last_read_at).getTime() : null,
+    fileSize: row.file_size,
+  }))
+}
+
 export const useComicStore = create<ComicStore>((set, get) => ({
   comics: [],
   isLoading: false,
@@ -54,6 +112,16 @@ export const useComicStore = create<ComicStore>((set, get) => ({
 
   loadComics: async () => {
     set({ isLoading: true })
+    try {
+      const supabaseComics = await loadComicsFromSupabase()
+      if (supabaseComics.length > 0) {
+        set({ comics: supabaseComics, isLoading: false })
+        return
+      }
+    } catch {
+      // fallback to local
+    }
+
     const comics = await getAllComics()
     set({ comics: comics.sort((a, b) => b.importedAt - a.importedAt), isLoading: false })
   },
@@ -75,6 +143,7 @@ export const useComicStore = create<ComicStore>((set, get) => ({
 
     await saveFile(id, result.file)
     await saveComic(comic)
+    await syncComicToSupabase(comic)
 
     set(state => ({
       comics: [comic, ...state.comics],
@@ -87,6 +156,7 @@ export const useComicStore = create<ComicStore>((set, get) => ({
 
   removeComic: async (id: string) => {
     await dbDeleteComic(id)
+    await deleteComicFromSupabase(id)
     set(state => ({
       comics: state.comics.filter(c => c.id !== id),
       currentComicId: state.currentComicId === id ? null : state.currentComicId,
@@ -96,6 +166,7 @@ export const useComicStore = create<ComicStore>((set, get) => ({
 
   updateComic: async (comic: Comic) => {
     await saveComic(comic)
+    await syncComicToSupabase(comic)
     set(state => ({
       comics: state.comics.map(c => c.id === comic.id ? comic : c),
     }))

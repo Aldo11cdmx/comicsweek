@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Header } from './components/Header'
 import { Hero } from './components/Hero'
@@ -7,16 +7,31 @@ import { ImportZone } from './components/ImportZone'
 import { Collections } from './components/Collections'
 import { Reader } from './components/Reader'
 import { BookmarkToast } from './components/BookmarkToast'
+import { LoginPage } from './components/LoginPage'
 import { useComicStore } from './store/useComicStore'
+import { useAuth } from './contexts/AuthContext'
 
 function App() {
   const { view, loadComics, currentComicId, showImportZone, setShowImportZone } = useComicStore()
+  const { user, loading } = useAuth()
+  const [offlineMode, setOfflineMode] = useState(() => {
+    return localStorage.getItem('comicsweek-offline-mode') === 'true'
+  })
 
   useEffect(() => {
     loadComics()
   }, [loadComics])
 
+  useEffect(() => {
+    localStorage.setItem('comicsweek-offline-mode', String(offlineMode))
+  }, [offlineMode])
+
   const showReader = view === 'reader' && currentComicId
+  const showApp = !loading && (user || offlineMode)
+
+  if (!showApp) {
+    return <LoginPage onOffline={() => setOfflineMode(true)} />
+  }
 
   return (
     <div className="min-h-screen bg-cw-bg text-cw-text">

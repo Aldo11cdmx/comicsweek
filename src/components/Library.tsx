@@ -5,11 +5,13 @@ import { ComicCard } from './ComicCard'
 import { SearchBar } from './SearchBar'
 import { ReadingStats } from './ReadingStats'
 import { useReadingStats } from '../hooks/useReadingStats'
-import { BarChart3 } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { BarChart3, Cloud, CloudOff, LogOut } from 'lucide-react'
 
 export function Library() {
   const { comics, filter, searchQuery, setFilter } = useComicStore()
   const { stats, reset } = useReadingStats()
+  const { user, signOut } = useAuth()
   const [showStats, setShowStats] = useState(false)
 
   let filtered = comics
@@ -26,7 +28,20 @@ export function Library() {
   return (
     <section className="mx-auto max-w-7xl px-6 py-16">
       <div className="mb-10">
-        <h2 className="font-display text-3xl font-bold text-cw-text md:text-4xl">Tu estantería</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-display text-3xl font-bold text-cw-text md:text-4xl">Tu estantería</h2>
+          {user ? (
+            <span className="flex items-center gap-1 rounded-full border border-cw-border/40 bg-cw-surface-2 px-2.5 py-1 text-xs text-cw-text-muted">
+              <Cloud className="h-3.5 w-3.5 text-cw-accent" />
+              Sincronizado
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 rounded-full border border-cw-border/40 bg-cw-surface-2 px-2.5 py-1 text-xs text-cw-text-muted">
+              <CloudOff className="h-3.5 w-3.5" />
+              Offline
+            </span>
+          )}
+        </div>
         <p className="mt-2 text-cw-text-muted">
           {filtered.length} {filtered.length === 1 ? 'historia' : 'historias'}
           {filter !== 'all' && ` · ${filter === 'new' ? 'Nuevas' : filter === 'reading' ? 'En lectura' : 'Terminadas'}`}
@@ -64,6 +79,15 @@ export function Library() {
           >
             <BarChart3 className="h-4 w-4" />
           </button>
+          {user && (
+            <button
+              onClick={signOut}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-cw-border/60 bg-cw-surface text-cw-text transition-colors hover:bg-cw-surface-2"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
