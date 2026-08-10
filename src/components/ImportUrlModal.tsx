@@ -81,10 +81,16 @@ export function ImportUrlModal({ isOpen, onClose }: ImportUrlModalProps) {
             continue
           }
 
-          const blob = await imageRes.blob()
-          const contentType = imageRes.headers.get('content-type') || 'image/jpeg'
+          const { base64, contentType } = await imageRes.json()
           const extension = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg'
           const path = `${user?.id || 'anonymous'}/${comicId}/page_${String(i + 1).padStart(3, '0')}.${extension}`
+
+          const binaryString = atob(base64)
+          const bytes = new Uint8Array(binaryString.length)
+          for (let j = 0; j < binaryString.length; j++) {
+            bytes[j] = binaryString.charCodeAt(j)
+          }
+          const blob = new Blob([bytes], { type: contentType })
 
           const { error: uploadError } = await supabase.storage
             .from('comics')

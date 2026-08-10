@@ -195,6 +195,17 @@ export function Library() {
       </div>
 
       <ImportUrlModal isOpen={showImportUrl} onClose={() => setShowImportUrl(false)} />
+
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={() => setShowImportUrl(true)}
+        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg md:hidden"
+        style={{ background: 'linear-gradient(135deg, #FF9F87 0%, #A8D8EA 100%)' }}
+        title="Importar desde URL"
+      >
+        <Link2 className="h-6 w-6" />
+      </motion.button>
     </section>
   )
 }
