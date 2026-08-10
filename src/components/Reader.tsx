@@ -238,7 +238,7 @@ export function Reader() {
         setCurrentUrl(url)
       }
 
-      const savedProgress = getProgress(comic.title, comic.fileSize)
+      const savedProgress = await getProgress(comic.title, comic.fileSize)
       if (savedProgress && savedProgress.fileHash) {
         const pageValid = savedProgress.currentPage >= 0 && savedProgress.currentPage < newDoc.getPageCount()
         const panelValid = savedProgress.currentPanel >= 0
@@ -327,6 +327,7 @@ export function Reader() {
   useEffect(() => {
     if (doc && currentPage !== prevPageRef.current) {
       prevPageRef.current = currentPage
+      doc.destroyCurrentCanvas()
       doc.getPageUrl(currentPage).then(url => {
         setCurrentUrl(url)
         if (mode === 'cinematic') {
@@ -349,6 +350,7 @@ export function Reader() {
       return
     }
     const leftIndex = currentPage - 1
+    doc.destroyCurrentCanvas()
     doc.getPageUrl(leftIndex).then(url => {
       setLeftPageUrl(url)
     }).catch(() => {
@@ -714,8 +716,11 @@ export function Reader() {
       recordSession(pagesRead, durationMs, comic.title)
     }
     updateReaderState({ currentPage: 0 })
+    if (doc) {
+      doc.dispose()
+    }
     storeCloseReader()
-  }, [comic, currentComicId, currentPage, cinematicIndex, viewerMode, brightness, contrast, saveProgressData, updateReaderState, storeCloseReader, recordSession])
+  }, [comic, currentComicId, currentPage, cinematicIndex, viewerMode, brightness, contrast, saveProgressData, updateReaderState, storeCloseReader, recordSession, doc])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -783,7 +788,16 @@ export function Reader() {
         )
       }
 
-    if (!currentUrl) return null
+    if (!currentUrl) {
+      return (
+        <div className="flex h-full items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 border-2 border-cw-accent border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-cw-text-muted">Cargando página...</span>
+          </div>
+        </div>
+      )
+    }
 
     if (cinematicActive && detectionResult && detectionResult.panels.length > 0 && currentPanel) {
       const focus: { tx: number; ty: number; scale: number } | null = panelFocus

@@ -4,8 +4,8 @@ import type { Page, Comic } from '../types'
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
-const MAX_CACHED_PAGES_MOBILE = 2
-const MAX_CACHED_PAGES_DESKTOP = 4
+const MAX_CACHED_PAGES_MOBILE = 1
+const MAX_CACHED_PAGES_DESKTOP = 3
 
 function isMobileDevice(): boolean {
   if (typeof window === 'undefined') return false
@@ -19,7 +19,7 @@ function getMaxCachedPages(): number {
 function getRenderScale(): number {
   if (typeof window === 'undefined') return 2
   if (window.innerWidth < 768) {
-    return Math.min(window.devicePixelRatio, 1.5)
+    return Math.min(window.devicePixelRatio, 1.0)
   }
   return Math.min(window.devicePixelRatio, 2.0)
 }
@@ -38,6 +38,7 @@ export class ComicDocument {
   pdfDoc: any | null = null
   loaded = false
   pageCache: Map<number, CachedPage> = new Map()
+  currentCanvas: HTMLCanvasElement | null = null
 
   constructor(comic: Comic, file: File) {
     this.comic = comic
@@ -97,6 +98,15 @@ export class ComicDocument {
     this.pages = pages
   }
 
+  destroyCurrentCanvas(): void {
+    if (this.currentCanvas) {
+      this.currentCanvas.width = 0
+      this.currentCanvas.height = 0
+      this.currentCanvas.remove()
+      this.currentCanvas = null
+    }
+  }
+
   async getPageUrl(index: number): Promise<string> {
     if (index < 0 || index >= this.pages.length) {
       throw new Error('Page index out of bounds')
@@ -107,6 +117,8 @@ export class ComicDocument {
     if (page.url && this.pageCache.has(index)) {
       return page.url
     }
+
+    this.destroyCurrentCanvas()
 
     if (this.comic.format === 'pdf' && this.pdfDoc) {
       const scale = getRenderScale()
@@ -123,9 +135,10 @@ export class ComicDocument {
       }
 
       await pdfPage.render(renderContext as any).promise
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
       page.url = dataUrl
 
+      this.currentCanvas = canvas
       this.pageCache.set(index, { url: dataUrl, canvas })
       this.evictDistantPages(index)
 
@@ -157,25 +170,22 @@ export class ComicDocument {
     const maxPages = getMaxCachedPages()
     const keysToKeep = new Set<number>()
 
-    for (let i = currentPage - 1; i <= currentPage + 1; i++) {
-      if (this.pageCache.has(i)) {
-        keysToKeep.add(i)
-      }
+    if (this.pageCache.has(currentPage)) {
+      keysToKeep.add(currentPage)
     }
 
-    if (keysToKeep.size < maxPages) {
-      const sortedEntries = Array.from(this.pageCache.entries())
-        .sort((a, b) => Math.abs(a[0] - currentPage) - Math.abs(b[0] - currentPage))
+    const sortedEntries = Array.from(this.pageCache.entries())
+      .filter(([pageNum]) => pageNum !== currentPage)
+      .sort((a, b) => Math.abs(a[0] - currentPage) - Math.abs(b[0] - currentPage))
 
-      for (const [pageNum] of sortedEntries) {
-        if (keysToKeep.size >= maxPages) break
-        keysToKeep.add(pageNum)
-      }
+    for (const [pageNum] of sortedEntries) {
+      if (keysToKeep.size >= maxPages) break
+      keysToKeep.add(pageNum)
     }
 
     this.pageCache.forEach((cached, pageNum) => {
       if (!keysToKeep.has(pageNum)) {
-        if (cached.canvas) {
+        if (cached.canvas && cached.canvas !== this.currentCanvas) {
           cached.canvas.width = 0
           cached.canvas.height = 0
         }
@@ -204,7 +214,9 @@ export class ComicDocument {
   }
 
   dispose(): void {
-    this.pageCache.forEach((cached, pageNum) => {
+    this.destroyCurrentCanvas()
+
+    this.pageCache.forEach((cached) => {
       if (cached.canvas) {
         cached.canvas.width = 0
         cached.canvas.height = 0
@@ -212,7 +224,6 @@ export class ComicDocument {
       if (cached.url && cached.url.startsWith('blob:')) {
         URL.revokeObjectURL(cached.url)
       }
-      void pageNum
     })
     this.pageCache.clear()
 
