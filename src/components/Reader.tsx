@@ -950,18 +950,16 @@ export function Reader() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="relative"
+          className="relative flex items-center justify-center h-full w-full"
           style={{
             transform: `scale(${zoom})`,
             transition: 'transform 0.2s ease-out',
-            maxWidth: '100%',
-            maxHeight: '100%',
           }}
         >
           <img
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="max-h-screen max-w-full object-contain"
+            className="max-h-full max-w-full object-contain"
             style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
           />
@@ -973,18 +971,16 @@ export function Reader() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="relative"
+        className="relative flex items-center justify-center h-full w-full"
         style={{
           transform: `scale(${zoom})`,
           transition: 'transform 0.2s ease-out',
-          maxWidth: '100%',
-          maxHeight: '100%',
         }}
       >
         <img
           src={currentUrl}
           alt={`Página ${currentPage + 1}`}
-          className="max-h-screen max-w-full object-contain"
+          className="max-h-full max-w-full object-contain"
           style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
           draggable={false}
         />
