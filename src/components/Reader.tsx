@@ -54,7 +54,11 @@ export function Reader() {
   const [panelFocus, setPanelFocus] = useState<{ tx: number; ty: number; scale: number } | null>(null)
   const [isFocusAnimating, setIsFocusAnimating] = useState(false)
   const [imageDims, setImageDims] = useState({ w: 0, h: 0 })
+  const [ambientColor, setAmbientColor] = useState<string | null>(null)
+  const [doubleTapZoom, setDoubleTapZoom] = useState(false)
+  const [doubleTapOrigin, setDoubleTapOrigin] = useState<{ x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const ambientCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const controlsTimeoutRef = useRef<number | null>(null)
   const prevPageRef = useRef(0)
   const detectionCacheRef = useRef<Map<string, DetectionResult>>(new Map())
@@ -75,7 +79,33 @@ export function Reader() {
   useEffect(() => {
     if (!currentUrl) return
     const img = new Image()
-    img.onload = () => setImageDims({ w: img.naturalWidth, h: img.naturalHeight })
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      setImageDims({ w: img.naturalWidth, h: img.naturalHeight })
+      try {
+        const canvas = ambientCanvasRef.current || document.createElement('canvas')
+        ambientCanvasRef.current = canvas
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        canvas.width = 64
+        canvas.height = 64
+        ctx.drawImage(img, 0, 0, 64, 64)
+        const data = ctx.getImageData(0, 0, 64, 64).data
+        let r = 0, g = 0, b = 0, count = 0
+        for (let i = 0; i < data.length; i += 16) {
+          r += data[i]
+          g += data[i + 1]
+          b += data[i + 2]
+          count++
+        }
+        r = Math.round(r / count)
+        g = Math.round(g / count)
+        b = Math.round(b / count)
+        setAmbientColor(`rgb(${r}, ${g}, ${b})`)
+      } catch {
+        // ignore cross-origin or canvas errors
+      }
+    }
     img.src = currentUrl
   }, [currentUrl])
 
@@ -676,7 +706,21 @@ export function Reader() {
     if (manualZoom.handleDoubleClick(e)) {
       return
     }
-  }, [manualZoom])
+
+    if (viewerMode === 'free' || !cinematicActive) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+
+      if (!doubleTapZoom) {
+        setDoubleTapOrigin({ x, y })
+        setDoubleTapZoom(true)
+      } else {
+        setDoubleTapZoom(false)
+        setDoubleTapOrigin(null)
+      }
+    }
+  }, [manualZoom, viewerMode, cinematicActive, doubleTapZoom])
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (presentationMode) {
@@ -978,44 +1022,103 @@ export function Reader() {
 
     if (viewerMode === 'free' || !cinematicActive) {
       return (
+        <>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentUrl}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="relative flex items-center justify-center h-full w-full"
+              style={{
+                transform: `scale(${zoom})`,
+                transition: 'transform 0.2s ease-out',
+              }}
+            >
+              {ambientColor && (
+                <div
+                  className="absolute inset-0 z-0 transition-all duration-700"
+                  style={{
+                    backgroundColor: ambientColor,
+                    opacity: 0.15,
+                    filter: 'blur(80px)',
+                  }}
+                />
+              )}
+              <img
+                src={currentUrl}
+                alt={`Página ${currentPage + 1}`}
+                className="relative z-10 max-h-full max-w-full object-contain"
+                style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+                draggable={false}
+                onDoubleClick={handleDoubleClick}
+              />
+            </motion.div>
+          </AnimatePresence>
+
+          {doubleTapZoom && doubleTapOrigin && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+              onClick={() => {
+                setDoubleTapZoom(false)
+                setDoubleTapOrigin(null)
+              }}
+            >
+              <motion.img
+                src={currentUrl}
+                alt={`Página ${currentPage + 1}`}
+                className="max-h-full max-w-full object-contain"
+                style={{
+                  filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}`,
+                  transform: `scale(2) translate(${-doubleTapOrigin.x * 2}px, ${-doubleTapOrigin.y * 2}px)`,
+                  transition: 'transform 0.3s ease',
+                }}
+                draggable={false}
+              />
+            </motion.div>
+          )}
+        </>
+      )
+    }
+
+    return (
+      <AnimatePresence mode="wait">
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          key={currentUrl}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
           className="relative flex items-center justify-center h-full w-full"
           style={{
             transform: `scale(${zoom})`,
             transition: 'transform 0.2s ease-out',
           }}
         >
+          {ambientColor && (
+            <div
+              className="absolute inset-0 z-0 transition-all duration-700"
+              style={{
+                backgroundColor: ambientColor,
+                opacity: 0.15,
+                filter: 'blur(80px)',
+              }}
+            />
+          )}
           <img
             src={currentUrl}
             alt={`Página ${currentPage + 1}`}
-            className="max-h-full max-w-full object-contain"
+            className="relative z-10 max-h-full max-w-full object-contain"
             style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
             draggable={false}
+            onDoubleClick={handleDoubleClick}
           />
         </motion.div>
-      )
-    }
-
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="relative flex items-center justify-center h-full w-full"
-        style={{
-          transform: `scale(${zoom})`,
-          transition: 'transform 0.2s ease-out',
-        }}
-      >
-        <img
-          src={currentUrl}
-          alt={`Página ${currentPage + 1}`}
-          className="max-h-full max-w-full object-contain"
-          style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
-          draggable={false}
-        />
-      </motion.div>
+      </AnimatePresence>
     )
   }
 
@@ -1035,6 +1138,7 @@ export function Reader() {
         presentationMode && 'presentation-mode'
       )}
     >
+      <canvas ref={ambientCanvasRef} className="hidden" />
       <AnimatePresence>
         {showControls && (
           <motion.div

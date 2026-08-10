@@ -7,13 +7,13 @@ import { ReadingStats } from './ReadingStats'
 import { useReadingStats } from '../hooks/useReadingStats'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
-import { BarChart3, Cloud, CloudOff, LogOut, RefreshCw, BarChart2, Filter, Link2, Upload } from 'lucide-react'
+import { BarChart3, Cloud, CloudOff, LogOut, RefreshCw, BarChart2, Link2, Upload } from 'lucide-react'
 import { Logo } from './Logo'
 import { RadialMenu } from './RadialMenu'
 import { ImportUrlModal } from './ImportUrlModal'
 
 export function Library() {
-  const { comics, filter, searchQuery, loadComics, setShowImportZone } = useComicStore()
+  const { comics, filter, searchQuery, loadComics, setShowImportZone, setFilter } = useComicStore()
   const { stats, reset } = useReadingStats()
   const { user, signOut } = useAuth()
   const [showStats, setShowStats] = useState(false)
@@ -127,12 +127,6 @@ export function Library() {
               action: () => setShowStats(true),
               color: '#FF9F87',
             },
-            {
-              icon: Filter,
-              label: 'Filtrar',
-              action: () => {},
-              color: '#C3E8B7',
-            },
           ]}
           isOpen={radialOpen}
           onClose={() => setRadialOpen(false)}
@@ -141,6 +135,30 @@ export function Library() {
       </div>
 
       <div ref={pullRef} className="relative">
+        <div className="mx-auto max-w-7xl px-6 pt-4">
+          <div className="flex items-center gap-2">
+            {([
+              { id: 'all', label: 'Todos' },
+              { id: 'new', label: 'No leídos' },
+              { id: 'reading', label: 'En progreso' },
+            ] as const).map(tab => (
+              <motion.button
+                key={tab.id}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setFilter(tab.id)}
+                className={`rounded-full px-4 py-1.5 text-xs font-medium transition-all ${
+                  filter === tab.id
+                    ? 'bg-[#2D2D2D] text-white shadow-sm'
+                    : 'bg-white/60 text-[#8E8E93] hover:bg-white/80'
+                }`}
+              >
+                {tab.label}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
         {(isPulling || isRefreshing) && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
