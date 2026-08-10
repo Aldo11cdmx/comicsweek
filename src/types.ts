@@ -18,7 +18,7 @@ export type View = 'home' | 'library' | 'collections' | 'reader' | 'import'
 export interface Comic {
   id: string
   title: string
-  format: 'cbz' | 'zip' | 'pdf'
+  format: 'cbz' | 'zip' | 'pdf' | 'url'
   cover: string
   pageCount: number
   progress: number
@@ -26,6 +26,7 @@ export interface Comic {
   importedAt: number
   lastReadAt: number | null
   fileSize: number
+  pageUrls?: string[]
 }
 
 export interface ReaderState {

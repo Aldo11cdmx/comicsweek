@@ -787,8 +787,39 @@ export function Reader() {
             nightFilter={nightFilter}
             zoom={zoom}
           />
+      )
+    }
+
+    if (comic.format === 'url' && comic.pageUrls && comic.pageUrls.length > 0) {
+      const pageUrl = comic.pageUrls[currentPage]
+      if (!pageUrl) {
+        return (
+          <div className="flex h-full items-center justify-center">
+            <span className="text-sm text-cw-text-muted">Página no disponible</span>
+          </div>
         )
       }
+
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="relative flex items-center justify-center h-full w-full"
+          style={{
+            transform: `scale(${zoom})`,
+            transition: 'transform 0.2s ease-out',
+          }}
+        >
+          <img
+            src={pageUrl}
+            alt={`Página ${currentPage + 1}`}
+            className="max-h-full max-w-full object-contain"
+            style={{ filter: `brightness(${brightness}) contrast(${contrast}) ${nightFilter}` }}
+            draggable={false}
+          />
+        </motion.div>
+      )
+    }
 
     if (!currentUrl) {
       return (
@@ -1390,7 +1421,7 @@ export function Reader() {
       {showThumbnails && doc && (
         <ThumbnailGrid
           doc={doc}
-          comicFormat={comic.format}
+          comicFormat={comic.format as 'pdf' | 'cbz' | 'zip'}
           currentPage={currentPage}
           totalPages={total}
           onSelectPage={(page) => {

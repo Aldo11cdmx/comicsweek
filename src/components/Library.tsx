@@ -7,9 +7,10 @@ import { ReadingStats } from './ReadingStats'
 import { useReadingStats } from '../hooks/useReadingStats'
 import { useAuth } from '../contexts/AuthContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
-import { BarChart3, Cloud, CloudOff, LogOut, RefreshCw, BarChart2, Filter } from 'lucide-react'
+import { BarChart3, Cloud, CloudOff, LogOut, RefreshCw, BarChart2, Filter, Link2 } from 'lucide-react'
 import { Logo } from './Logo'
 import { RadialMenu } from './RadialMenu'
+import { ImportUrlModal } from './ImportUrlModal'
 
 export function Library() {
   const { comics, filter, searchQuery, loadComics } = useComicStore()
@@ -17,6 +18,7 @@ export function Library() {
   const { user, signOut } = useAuth()
   const [showStats, setShowStats] = useState(false)
   const [radialOpen, setRadialOpen] = useState(false)
+  const [showImportUrl, setShowImportUrl] = useState(false)
   const {
     containerRef: pullRef,
     isPulling,
@@ -68,6 +70,15 @@ export function Library() {
               title="Estadísticas de lectura"
             >
               <BarChart3 className="h-4 w-4" />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowImportUrl(true)}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white/60 text-[#8E8E93] transition-colors hover:bg-white/80"
+              title="Importar desde URL"
+            >
+              <Link2 className="h-4 w-4" />
             </motion.button>
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -172,6 +183,8 @@ export function Library() {
           )}
         </div>
       </div>
+
+      <ImportUrlModal isOpen={showImportUrl} onClose={() => setShowImportUrl(false)} />
     </section>
   )
 }

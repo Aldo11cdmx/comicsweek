@@ -16,6 +16,7 @@ interface ComicStore {
 
   loadComics: () => Promise<void>
   importComic: (result: ImportResult) => Promise<Comic>
+  importComicFromUrl: (title: string, pageUrls: string[]) => Promise<Comic>
   removeComic: (id: string) => Promise<void>
   updateComic: (comic: Comic) => Promise<void>
   openReader: (comicId: string, state?: Partial<ReaderState>) => void
@@ -63,6 +64,7 @@ async function syncComicToSupabase(comic: Comic) {
     imported_at: new Date(comic.importedAt).toISOString(),
     last_read_at: comic.lastReadAt ? new Date(comic.lastReadAt).toISOString() : null,
     file_size: comic.fileSize,
+    page_urls: comic.pageUrls || null,
   })
 }
 
@@ -96,6 +98,7 @@ async function loadComicsFromSupabase(): Promise<Comic[]> {
     importedAt: new Date(row.imported_at).getTime(),
     lastReadAt: row.last_read_at ? new Date(row.last_read_at).getTime() : null,
     fileSize: row.file_size,
+    pageUrls: row.page_urls || undefined,
   }))
 }
 
@@ -142,6 +145,34 @@ export const useComicStore = create<ComicStore>((set, get) => ({
     }
 
     await saveFile(id, result.file)
+    await saveComic(comic)
+    await syncComicToSupabase(comic)
+
+    set(state => ({
+      comics: [comic, ...state.comics],
+      view: 'library',
+      showImportZone: false,
+    }))
+
+    return comic
+  },
+
+  importComicFromUrl: async (title: string, pageUrls: string[]) => {
+    const id = `comic-${Date.now()}`
+    const comic: Comic = {
+      id,
+      title,
+      format: 'url',
+      cover: pageUrls[0] || '',
+      pageCount: pageUrls.length,
+      progress: 0,
+      status: 'new',
+      importedAt: Date.now(),
+      lastReadAt: null,
+      fileSize: 0,
+      pageUrls,
+    }
+
     await saveComic(comic)
     await syncComicToSupabase(comic)
 
