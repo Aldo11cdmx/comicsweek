@@ -6,7 +6,6 @@ import { Library } from './components/Library'
 import { ImportZone } from './components/ImportZone'
 import { Collections } from './components/Collections'
 import { Reader } from './components/Reader'
-import { BookmarkToast } from './components/BookmarkToast'
 import { LoginPage } from './components/LoginPage'
 import { LandingPage } from './components/LandingPage'
 import { SplashScreen } from './components/SplashScreen'
@@ -151,8 +150,6 @@ function App() {
           </div>
         </div>
       )}
-
-      <BookmarkToast />
     </div>
   )
 }

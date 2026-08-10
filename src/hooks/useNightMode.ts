@@ -42,7 +42,7 @@ export function useNightMode() {
       case 'sepia':
         return 'sepia(0.8) brightness(0.9)'
       default:
-        return 'none'
+        return ''
     }
   }, [mode])
 
